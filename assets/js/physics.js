@@ -49,14 +49,15 @@ export class Physics {
     this.grab = null;
 
     /* --- particles --- */
-    this.MAXP = 2600;
+    this.MAXP = 3600;
     this.PX = new Float32Array(this.MAXP); this.PY = new Float32Array(this.MAXP);
     this.PZ = new Float32Array(this.MAXP); this.PVX = new Float32Array(this.MAXP);
     this.PVY = new Float32Array(this.MAXP); this.PVZ = new Float32Array(this.MAXP);
     this.PLife = new Float32Array(this.MAXP); this.PSize = new Float32Array(this.MAXP);
     this.PMax = new Float32Array(this.MAXP);
+    this.PKind = new Uint8Array(this.MAXP);   // 0 droplet · 1 mist · 2 foam sheet
     this.pCount = 0;
-    this.particleData = new Float32Array(this.MAXP * 5);
+    this.particleData = new Float32Array(this.MAXP * 6);
 
     /* --- ripple field --- */
     this.RN = 192;
@@ -65,7 +66,12 @@ export class Physics {
     this.rB = new Float32Array(this.RN * this.RN);
     this.cur = this.rA; this.prv = this.rB;
     this.foam = new Float32Array(this.RN * this.RN);
+    this.foamB = new Float32Array(this.RN * this.RN);
     this.ripData = new Float32Array(this.RN * this.RN * 2);
+    /* coarse orbital-flow grid: foam is carried by the waves, not left behind */
+    this.FN = 32;
+    this.velX = new Float32Array(this.FN * this.FN);
+    this.velZ = new Float32Array(this.FN * this.FN);
     this.damp = new Float32Array(this.RN * this.RN);
     for (let y = 0; y < this.RN; y++) for (let x = 0; x < this.RN; x++) {
       const d = Math.min(x, y, this.RN - 1 - x, this.RN - 1 - y);
@@ -79,6 +85,9 @@ export class Physics {
     this.time = 0;
     this.steps = 0;
     this.timeScale = 1;
+    this.splashScale = 1;   // how violently a body breaks the surface
+    this.sprayScale = 1;    // airborne droplets
+    this.rippleGain = 0.25; // how much of the splash the body feels again
     this._s0 = { h: 0, vx: 0, vy: 0, vz: 0, ax: 0, az: 0 };
     this._s1 = { h: 0, vx: 0, vy: 0, vz: 0, ax: 0, az: 0 };
   }
@@ -146,15 +155,16 @@ export class Physics {
 
   /* ---------------- ripples ---------------- */
   rippleStep() {
-    const { RN, cur, prv, damp, foam } = this;
+    const { RN, cur, prv, damp } = this;
     const C = this.RC2;
     for (let y = 1; y < RN - 1; y++) {
       let i = y * RN + 1;
       for (let x = 1; x < RN - 1; x++, i++) {
         const c = cur[i];
         const lap = cur[i - 1] + cur[i + 1] + cur[i - RN] + cur[i + RN] - 4 * c;
-        prv[i] = (2 * c - prv[i] + C * lap) * damp[i];
-        foam[i] *= 0.9972;
+        let v = (2 * c - prv[i] + C * lap) * damp[i];
+        // the field is bounded: a splash may dent the surface, never tear it
+        prv[i] = v > 0.5 ? 0.5 : v < -0.5 ? -0.5 : v;
       }
     }
     this.cur = prv; this.prv = cur;
@@ -193,7 +203,7 @@ export class Physics {
       if (d2 >= 1) continue;
       const i = zi * RN + xi;
       const v = this.foam[i] + amt * (1 - d2);
-      this.foam[i] = v > 1.2 ? 1.2 : v;
+      this.foam[i] = v > 0.9 ? 0.9 : v;
     }
   }
 
@@ -202,6 +212,133 @@ export class Physics {
     const n = this.RN * this.RN, d = this.ripData, c = this.cur, f = this.foam;
     for (let i = 0; i < n; i++) { d[i * 2] = c[i]; d[i * 2 + 1] = f[i]; }
     return d;
+  }
+
+  /* ---------------- foam transport ----------------
+     Foam is not painted on the water: it is a field that the waves carry.
+     Each step it is advected along the orbital flow of the Gerstner waves,
+     spread a little and faded, so a wake breaks up and drifts instead of
+     sitting there as a decal.                                     */
+
+  /** Bilinear sample of the foam field at a world position. */
+  sampleFoam(field, wx, wz) {
+    const RN = this.RN, RR = this.RR;
+    let gx = (wx / (2 * RR) + 0.5) * RN - 0.5;
+    let gz = (wz / (2 * RR) + 0.5) * RN - 0.5;
+    if (gx < 0) gx = 0; else if (gx > RN - 1.001) gx = RN - 1.001;
+    if (gz < 0) gz = 0; else if (gz > RN - 1.001) gz = RN - 1.001;
+    const x0 = gx | 0, z0 = gz | 0;
+    const fx = gx - x0, fz = gz - z0;
+    const i = z0 * RN + x0;
+    const a = field[i], b = field[i + 1], c = field[i + RN], d = field[i + RN + 1];
+    return (a + (b - a) * fx) * (1 - fz) + (c + (d - c) * fx) * fz;
+  }
+
+  /** Bilinear sample of a coarse grid (the orbital flow). */
+  sampleCoarse(field, wx, wz) {
+    const FN = this.FN, RR = this.RR;
+    let gx = (wx / (2 * RR) + 0.5) * FN - 0.5;
+    let gz = (wz / (2 * RR) + 0.5) * FN - 0.5;
+    if (gx < 0) gx = 0; else if (gx > FN - 1.001) gx = FN - 1.001;
+    if (gz < 0) gz = 0; else if (gz > FN - 1.001) gz = FN - 1.001;
+    const x0 = gx | 0, z0 = gz | 0;
+    const fx = gx - x0, fz = gz - z0;
+    const i = z0 * FN + x0;
+    const a = field[i], b = field[i + 1], c = field[i + FN], d = field[i + FN + 1];
+    return (a + (b - a) * fx) * (1 - fz) + (c + (d - c) * fx) * fz;
+  }
+
+  /** Height of the interactive ripple field — the body feels its own splash. */
+  sampleRipple(wx, wz) {
+    const v = this.sampleFoam(this.cur, wx, wz);
+    return v > 0.3 ? 0.3 : v < -0.3 ? -0.3 : v;
+  }
+
+  /** Refresh the coarse orbital-velocity grid of the wave field. */
+  updateFlow() {
+    const FN = this.FN, RR = this.RR, t = this.time;
+    for (let z = 0; z < FN; z++) {
+      const wz = ((z + 0.5) / FN) * 2 * RR - RR;
+      for (let x = 0; x < FN; x++) {
+        const wx = ((x + 0.5) / FN) * 2 * RR - RR;
+        let vx = 0, vz = 0;
+        for (let i = 0; i < 8; i++) {
+          const w = this.waves[i];
+          const th = w.k * (w.dx * wx + w.dz * wz) - w.om * t + w.ph;
+          const vh = w.qk * w.om * Math.sin(th);
+          vx += w.dx * vh; vz += w.dz * vh;
+        }
+        const idx = z * FN + x;
+        this.velX[idx] = vx; this.velZ[idx] = vz;
+      }
+    }
+  }
+
+  /** Carry the foam along the waves, spread it and let it fade. */
+  updateFoam(dt) {
+    const RN = this.RN, RR = this.RR, foam = this.foam, foamB = this.foamB;
+    const decay = Math.pow(0.9955, dt * 60);
+    for (let z = 0; z < RN; z++) {
+      const wz = ((z + 0.5) / RN) * 2 * RR - RR;
+      for (let x = 0; x < RN; x++) {
+        const wx = ((x + 0.5) / RN) * 2 * RR - RR;
+        const vx = this.sampleCoarse(this.velX, wx, wz);
+        const vz = this.sampleCoarse(this.velZ, wx, wz);
+        const sx = wx - vx * dt, sz = wz - vz * dt;
+        foamB[z * RN + x] = this.sampleFoam(foam, sx, sz);
+      }
+    }
+    for (let z = 0; z < RN; z++) {
+      for (let x = 0; x < RN; x++) {
+        const i = z * RN + x;
+        const l = x > 0 ? i - 1 : i, r = x < RN - 1 ? i + 1 : i;
+        const u = z > 0 ? i - RN : i, d = z < RN - 1 ? i + RN : i;
+        const avg = (foamB[l] + foamB[r] + foamB[u] + foamB[d]) * 0.25;
+        foam[i] = (foamB[i] * 0.87 + avg * 0.13) * decay;
+      }
+    }
+  }
+
+  /** A sharp impact: the surface dips, a ring of water is thrown up. */
+  addImpulse(wx, wz, rad, amt) {
+    const RN = this.RN;
+    const gx = (wx / (2 * this.RR) + 0.5) * RN - 0.5;
+    const gz = (wz / (2 * this.RR) + 0.5) * RN - 0.5;
+    const rc = Math.max(1.2, rad / this.cellSz);
+    const x0 = Math.max(1, Math.floor(gx - rc)), x1 = Math.min(RN - 2, Math.ceil(gx + rc));
+    const z0 = Math.max(1, Math.floor(gz - rc)), z1 = Math.min(RN - 2, Math.ceil(gz + rc));
+    if (x1 < x0 || z1 < z0) return;
+    for (let zi = z0; zi <= z1; zi++) for (let xi = x0; xi <= x1; xi++) {
+      const dx = xi - gx, dz = zi - gz;
+      const d = Math.sqrt(dx * dx + dz * dz) / rc;
+      if (d >= 1.25) continue;
+      const core = Math.exp(-d * d * 5.0);                       // the dent
+      const rim = Math.exp(-Math.pow((d - 0.74) / 0.26, 2));    // the raised collar
+      const i = zi * RN + xi;
+      const v = this.cur[i] + amt * (core - rim * 1.7);
+      this.cur[i] = v > 0.7 ? 0.7 : v < -0.7 ? -0.7 : v;
+    }
+  }
+
+  /** Foam smeared along the direction of travel. */
+  addFoamTrail(wx, wz, dx, dz, rad, amt) {
+    const RN = this.RN;
+    const gx = (wx / (2 * this.RR) + 0.5) * RN - 0.5;
+    const gz = (wz / (2 * this.RR) + 0.5) * RN - 0.5;
+    const rc = Math.max(1.2, rad / this.cellSz);
+    const x0 = Math.max(1, Math.floor(gx - rc)), x1 = Math.min(RN - 2, Math.ceil(gx + rc));
+    const z0 = Math.max(1, Math.floor(gz - rc)), z1 = Math.min(RN - 2, Math.ceil(gz + rc));
+    if (x1 < x0 || z1 < z0) return;
+    for (let zi = z0; zi <= z1; zi++) for (let xi = x0; xi <= x1; xi++) {
+      const ox = xi - gx, oz = zi - gz;
+      const along = ox * dx + oz * dz;
+      const lat = -ox * dz + oz * dx;
+      if (along < -rc * 0.6) continue;               // only behind the body
+      const f = Math.exp(-(lat * lat) / (rc * rc * 0.55));
+      const i = zi * RN + xi;
+      const v = this.foam[i] + amt * f;
+      this.foam[i] = v > 0.9 ? 0.9 : v;
+    }
   }
 
   /* ---------------- bodies ---------------- */
@@ -216,7 +353,8 @@ export class Physics {
       x, y, z, vx, vy, vz,
       wx: (Math.random() - 0.5) * 5, wy: (Math.random() - 0.5) * 5, wz: (Math.random() - 0.5) * 5,
       q, r, V, m, im: 1 / m, I: T.ic * m * r * r,
-      type, e: T.e, pf: 0, wh: this.approxH(x, z, this.time), grab: null, dead: false, frac: 0
+      type, e: T.e, pf: 0, wh: this.approxH(x, z, this.time), grab: null, dead: false, frac: 0,
+      sub: 0, wake: 0
     };
     this.balls.push(b);
     while (this.balls.length > this.maxBalls) {
@@ -228,51 +366,143 @@ export class Physics {
 
   clear() { this.balls.length = 0; this.grab = null; }
 
-  emit(x, y, z, vx, vy, vz, size, life) {
+  emit(x, y, z,vx, vy, vz, size, life, kind = 0) {
     if (this.pCount >= this.MAXP) return;
     const i = this.pCount++;
     this.PX[i] = x; this.PY[i] = y; this.PZ[i] = z;
     this.PVX[i] = vx; this.PVY[i] = vy; this.PVZ[i] = vz;
     this.PSize[i] = size; this.PLife[i] = life; this.PMax[i] = life;
+    this.PKind[i] = kind;
   }
 
+  /* ---------------- splashes ----------------
+     An impact is three things at once: a crown of heavy drops thrown
+     outward, a column that falls back, and a cloud of fine mist that
+     hangs for a moment after the heavy water has gone.               */
+
   splash(b, speed) {
-    const n = Math.min(150, Math.floor(10 + speed * 14 * b.r * 2));
-    const rho = b.r * 0.85;
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * 6.2832;
-      const out = (0.25 + Math.random()) * speed * 0.22;
-      const up = (0.5 + Math.random() * 1.1) * speed * 0.4;
+    const S = this.splashScale;
+    const sp = Math.max(0.5, speed);
+    const r = b.r, y = b.wh;
+
+    // crown — heavy drops on a wide, flattish cone
+    const crown = Math.min(300, Math.floor((12 + sp * 26) * r * 2.4 * S));
+    for (let i = 0; i < crown; i++) {
+      const a = Math.random() * 6.2831853;
+      const rad = r * (0.5 + Math.random() * 0.7);
+      const out = sp * (0.08 + Math.random() * 0.24);
+      const up = sp * (0.26 + Math.random() * 0.46);
       this.emit(
-        b.x + Math.cos(a) * rho, b.wh + 0.02, b.z + Math.sin(a) * rho,
-        Math.cos(a) * out + b.vx * 0.2, up, Math.sin(a) * out + b.vz * 0.2,
-        (0.03 + Math.random() * 0.07) * (0.5 + b.r), 0.9 + Math.random() * 0.9
+        b.x + Math.cos(a) * rad, y + 0.02, b.z + Math.sin(a) * rad,
+        Math.cos(a) * out + b.vx * 0.22, up, Math.sin(a) * out + b.vz * 0.22,
+        (0.022 + Math.random() * 0.05) * (0.6 + r), 0.5 + Math.random() * 0.8, 0
       );
     }
-    const nj = Math.floor(speed * 3);
-    for (let i = 0; i < nj; i++) {
-      const a = Math.random() * 6.28;
-      this.emit(b.x, b.wh, b.z, Math.cos(a) * 0.4, speed * (0.35 + Math.random() * 0.35), Math.sin(a) * 0.4,
-        0.035 + Math.random() * 0.04, 1.0 + Math.random() * 0.8);
+
+    // column — a few fat drops that arc back down
+    const col = Math.floor((2 + sp * 1.8 * r * 2) * S);
+    for (let i = 0; i < col; i++) {
+      const a = Math.random() * 6.2831853;
+      this.emit(
+        b.x + Math.cos(a) * r * 0.35, y + 0.04, b.z + Math.sin(a) * r * 0.35,
+        Math.cos(a) * sp * 0.07, sp * (0.8 + Math.random() * 0.6), Math.sin(a) * sp * 0.07,
+        0.045 + Math.random() * 0.05, 0.85 + Math.random() * 0.7, 0
+      );
     }
-    this.addFoam(b.x, b.z, b.r * 1.7, Math.min(1.2, speed * 0.22));
+
+    // mist — fine droplets that hang and drift
+    const mist = Math.min(260, Math.floor((22 + sp * 15) * S * this.sprayScale));
+    for (let i = 0; i < mist; i++) {
+      const a = Math.random() * 6.2831853;
+      const rad = r * (0.25 + Math.random() * 1.3);
+      this.emit(
+        b.x + Math.cos(a) * rad, y + 0.04 + Math.random() * 0.28, b.z + Math.sin(a) * rad,
+        Math.cos(a) * sp * 0.15 + (Math.random() - 0.5) * 0.5,
+        sp * (0.08 + Math.random() * 0.28) + 0.25,
+        Math.sin(a) * sp * 0.15 + (Math.random() - 0.5) * 0.5,
+        0.014 + Math.random() * 0.03, 1.1 + Math.random() * 1.7, 1
+      );
+    }
+
+    // the water itself: a dent under the impact and a collar of foam
+    this.addFoam(b.x, b.z, r * 2.0, Math.min(0.85, sp * 0.22 * S));
+    this.addImpulse(b.x, b.z, r * 1.35, -Math.min(0.5, sp * 0.07 * S));
+  }
+
+  /** A body leaving the surface again throws a smaller, upward splash. */
+  exitSplash(b, speed) {
+    const S = this.splashScale;
+    const sp = Math.min(speed, 9);
+    const n = Math.min(90, Math.floor((6 + sp * 9) * b.r * 2 * S));
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.2831853;
+      const rad = b.r * (0.4 + Math.random() * 0.6);
+      this.emit(
+        b.x + Math.cos(a) * rad, b.wh + 0.03, b.z + Math.sin(a) * rad,
+        Math.cos(a) * sp * 0.14 + b.vx * 0.18, sp * (0.35 + Math.random() * 0.5), Math.sin(a) * sp * 0.14 + b.vz * 0.18,
+        (0.018 + Math.random() * 0.035) * (0.6 + b.r), 0.5 + Math.random() * 0.6, 0
+      );
+    }
+    const mist = Math.min(90, Math.floor((6 + sp * 6) * S * this.sprayScale));
+    for (let i = 0; i < mist; i++) {
+      const a = Math.random() * 6.2831853;
+      this.emit(
+        b.x + Math.cos(a) * b.r, b.wh + 0.08, b.z + Math.sin(a) * b.r,
+        Math.cos(a) * sp * 0.1, sp * 0.18 + 0.2, Math.sin(a) * sp * 0.1,
+        0.012 + Math.random() * 0.022, 0.9 + Math.random() * 1.1, 1
+      );
+    }
+    this.addFoam(b.x, b.z, b.r * 1.5, Math.min(0.55, sp * 0.09 * S));
+  }
+
+  /** Continuous spray thrown off a body that is cutting through the water. */
+  skimSpray(b, speed, rho) {
+    const S = this.sprayScale;
+    const n = Math.min(6, Math.floor(speed * 0.9 * S));
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.2831853;
+      this.emit(
+        b.x + Math.cos(a) * rho * 0.9, b.wh + 0.02, b.z + Math.sin(a) * rho * 0.9,
+        b.vx * 0.45 + Math.cos(a) * (0.4 + speed * 0.12),
+        0.7 + Math.random() * speed * 0.3,
+        b.vz * 0.45 + Math.sin(a) * (0.4 + speed * 0.12),
+        0.018 + Math.random() * 0.03, 0.45 + Math.random() * 0.5, 0
+      );
+    }
+    if (Math.random() < 0.35) {
+      const a = Math.random() * 6.2831853;
+      this.emit(
+        b.x + Math.cos(a) * rho, b.wh + 0.05, b.z + Math.sin(a) * rho,
+        b.vx * 0.3, 0.5 + Math.random() * 0.5, b.vz * 0.3,
+        0.02 + Math.random() * 0.03, 0.9 + Math.random() * 0.8, 1
+      );
+    }
   }
 
   particlesStep(dt, maxP) {
     const PX = this.PX, PY = this.PY, PZ = this.PZ, PVX = this.PVX, PVY = this.PVY, PVZ = this.PVZ;
-    const PLife = this.PLife, PSize = this.PSize, PMax = this.PMax;
-    const dr = 1 - 0.5 * dt;
+    const PLife = this.PLife, PSize = this.PSize, PMax = this.PMax, PK = this.PKind;
     for (let i = this.pCount - 1; i >= 0; i--) {
+      const kind = PK[i];
       PLife[i] -= dt;
-      PVY[i] -= G * this.gravityScale * dt; PVX[i] *= dr; PVZ[i] *= dr;
+      // mist is light: it barely falls and it is dragged by the air
+      const grav = kind === 1 ? 0.16 : kind === 2 ? 1.6 : 1;
+      const drag = kind === 1 ? 1.9 : kind === 2 ? 1.2 : 0.5;
+      const dr = 1 - drag * dt;
+      PVY[i] -= G * this.gravityScale * grav * dt;
+      PVX[i] *= dr; PVZ[i] *= dr;
       PX[i] += PVX[i] * dt; PY[i] += PVY[i] * dt; PZ[i] += PVZ[i] * dt;
       if (PLife[i] <= 0 || PY[i] < this.approxH(PX[i], PZ[i], this.time)) {
-        if (PLife[i] > 0 && Math.random() < 0.3) this.addRipple(PX[i], PZ[i], 0.13, -0.012);
+        if (PLife[i] > 0) {
+          if (kind === 0 && Math.random() < 0.35) this.addRipple(PX[i], PZ[i], 0.13, -0.012);
+          if (kind === 1 && Math.random() < 0.08) this.addFoam(PX[i], PZ[i], 0.14, 0.05);
+        }
         const l = --this.pCount;
         if (i !== l) {
           PX[i] = PX[l]; PY[i] = PY[l]; PZ[i] = PZ[l];
           PVX[i] = PVX[l]; PVY[i] = PVY[l]; PVZ[i] = PVZ[l];
           PLife[i] = PLife[l]; PSize[i] = PSize[l]; PMax[i] = PMax[l];
+          PK[i] = PK[l];
         }
       }
     }
@@ -284,11 +514,21 @@ export class Physics {
     const d = this.particleData;
     const n = this.pCount;
     for (let i = 0; i < n; i++) {
-      const o = i * 5;
+      const o = i * 6;
       const lf = this.PLife[i] / this.PMax[i];
+      const kind = this.PKind[i];
       d[o] = this.PX[i]; d[o + 1] = this.PY[i]; d[o + 2] = this.PZ[i];
-      d[o + 3] = this.PSize[i] * (0.6 + 0.4 * lf);
-      d[o + 4] = Math.min(1, this.PLife[i] / 0.35) * 0.75;
+      if (kind === 1) {
+        d[o + 3] = this.PSize[i] * (1.5 + 1.6 * lf);   // mist spreads as it fades
+        d[o + 4] = Math.min(1, this.PLife[i] / 0.9) * 0.5;
+      } else if (kind === 2) {
+        d[o + 3] = this.PSize[i] * (0.7 + 0.3 * lf);
+        d[o + 4] = Math.min(1, this.PLife[i] / 0.4) * 0.85;
+      } else {
+        d[o + 3] = this.PSize[i] * (0.6 + 0.4 * lf);
+        d[o + 4] = Math.min(1, this.PLife[i] / 0.35) * 0.8;
+      }
+      d[o + 5] = kind;
     }
     return n;
   }
@@ -303,15 +543,23 @@ export class Physics {
   stepBall(b, dt) {
     const r = b.r, t = this.time, o = 0.65 * r;
     const S0 = this._s0, S1 = this._s1;
+    const g = this.rippleGain;
+    /* the surface under the body is the wave field *plus* the disturbance
+       the body (and everything else) has already made                     */
     this.waveSample(b.x, b.z, t, true, S0);
-    this.waveSample(b.x + o, b.z, t, false, S1); const h1 = S1.h;
-    this.waveSample(b.x - o, b.z, t, false, S1); const h2 = S1.h;
-    this.waveSample(b.x, b.z + o, t, false, S1); const h3 = S1.h;
-    this.waveSample(b.x, b.z - o, t, false, S1); const h4 = S1.h;
-    b.wh = S0.h;
-    const Vs = (this.capV(S0.h, b) + this.capV(h1, b) + this.capV(h2, b) + this.capV(h3, b) + this.capV(h4, b)) / 5;
+    const h0 = S0.h + this.sampleRipple(b.x, b.z) * g;
+    this.waveSample(b.x + o, b.z, t, false, S1); const h1 = S1.h + this.sampleRipple(b.x + o, b.z) * g;
+    this.waveSample(b.x - o, b.z, t, false, S1); const h2 = S1.h + this.sampleRipple(b.x - o, b.z) * g;
+    this.waveSample(b.x, b.z + o, t, false, S1); const h3 = S1.h + this.sampleRipple(b.x, b.z + o) * g;
+    this.waveSample(b.x, b.z - o, t, false, S1); const h4 = S1.h + this.sampleRipple(b.x, b.z - o) * g;
+    b.wh = h0;
+    b.sub = clamp((h0 - (b.y - r)) / (2 * r), 0, 1);
+    /* the body's speed through the water, not through the air */
+    b.rvx = b.vx - S0.vx; b.rvz = b.vz - S0.vz;
+    b.wake = Math.hypot(b.rvx, b.rvz);
+    const Vs = (this.capV(h0, b) + this.capV(h1, b) + this.capV(h2, b) + this.capV(h3, b) + this.capV(h4, b)) / 5;
     const frac = Vs / b.V; b.frac = frac;
-    const dAvg = clamp((S0.h + h1 + h2 + h3 + h4) / 5 - (b.y - r), 0, 2 * r);
+    const dAvg = clamp((h0 + h1 + h2 + h3 + h4) / 5 - (b.y - r), 0, 2 * r);
     const meff = b.m + 0.5 * RHO_W * Vs;
 
     const gAcc = G * this.gravityScale;
@@ -359,29 +607,33 @@ export class Physics {
     const vm = Math.hypot(b.vx, b.vy, b.vz);
     if (vm > 40) { const s = 40 / vm; b.vx *= s; b.vy *= s; b.vz *= s; }
 
+    /* entering the water makes a splash, leaving it makes a smaller one */
     if (b.pf < 0.003 && frac >= 0.003 && b.vy < -1.0) this.splash(b, -b.vy);
+    else if (b.pf > 0.02 && frac <= 0.02 && b.vy > 1.4) this.exitSplash(b, b.vy);
     b.pf = frac;
 
-    const dpen = S0.h - (b.y - r);
+    const dpen = h0 - (b.y - r);
     if (dpen > 0 && dpen < 2 * r) {
-      const dy = b.y - S0.h;
+      const dy = b.y - h0;
       const rho = Math.max(Math.sqrt(Math.max(r * r - dy * dy, 0)), 0.06);
-      this.addRipple(b.x, b.z, rho * 1.25 + 0.12, b.vy * dt * 0.35);
+      if (Math.abs(b.vy) > 0.25) {
+        this.addRipple(b.x, b.z, rho * 1.25 + 0.12, b.vy * dt * 0.22);
+      }
       const ux = b.vx - S0.vx, uz = b.vz - S0.vz, sp = Math.hypot(ux, uz);
       if (sp > 0.4) {
         const dx = ux / sp, dz = uz / sp;
         this.addRipple(b.x + dx * rho * 0.9, b.z + dz * rho * 0.9, rho * 0.8 + 0.1, sp * dt * 0.22);
         this.addRipple(b.x - dx * rho * 0.9, b.z - dz * rho * 0.9, rho * 0.8 + 0.1, -sp * dt * 0.22);
+        /* a moving body drags a line of foam behind it */
+        if (sp > 0.5) {
+          this.addFoamTrail(b.x, b.z, dx, dz, rho * 1.3 + 0.08,
+            Math.min(0.4, (sp - 0.4) * 0.16) * dt * 4);
+        }
       }
       if (sp > 1.4 || Math.abs(b.vy) > 2) {
-        this.addFoam(b.x, b.z, rho * 1.4 + 0.1, Math.min(1, (sp + Math.abs(b.vy)) * 0.45) * dt * 10);
+        this.addFoam(b.x, b.z, rho * 1.4 + 0.1, Math.min(0.8, (sp + Math.abs(b.vy)) * 0.35) * dt * 6);
       }
-      if (sp > 3 && frac < 0.95 && Math.random() < sp * dt * 4) {
-        const a = Math.random() * 6.28;
-        this.emit(b.x + Math.cos(a) * rho, S0.h, b.z + Math.sin(a) * rho,
-          b.vx * 0.4 + Math.cos(a) * 0.6, 0.8 + Math.random() * sp * 0.25, b.vz * 0.4 + Math.sin(a) * 0.6,
-          0.025 + Math.random() * 0.03, 0.6 + Math.random() * 0.5);
-      }
+      if (sp > 1.6 && frac < 0.95) this.skimSpray(b, sp, rho);
     }
 
     b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
@@ -442,7 +694,7 @@ export class Physics {
         }
         if (jn * Math.min(a.im, b.im) > 0.8) {
           const hy = (a.wh + b.wh) * 0.5;
-          if (Math.abs(a.y - hy) < a.r * 1.5) this.addFoam((a.x + b.x) / 2, (a.z + b.z) / 2, 0.5, 0.4);
+          if (Math.abs(a.y - hy) < a.r * 1.5) this.addFoam((a.x + b.x) / 2, (a.z + b.z) / 2, 0.5, 0.3);
         }
       }
     }
@@ -465,6 +717,11 @@ export class Physics {
       }
       this.collide();
       if ((this.steps & 1) === 0) this.rippleStep();
+      /* foam is transported at 60 Hz: the orbital flow of the waves carries it */
+      if (this.steps % 4 === 0) {
+        this.updateFlow();
+        this.updateFoam(H_STEP * 4);
+      }
       this._acc -= H_STEP;
       steps++;
     }

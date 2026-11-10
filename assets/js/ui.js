@@ -8,8 +8,8 @@ import { BODY_TYPES } from './physics.js';
 import { MOODS, SCENE_PRESETS } from './palettes.js';
 
 /* -------------------------------------------------------------------------
-   Radial menu — eight entries on one orbit.
-   Five open panels, three are direct actions.
+   Radial menu — twelve entries on one orbit.
+   Five open panels, seven are direct actions.
    ------------------------------------------------------------------------- */
 export const RADIAL = [
   { id: 'scene', icon: 'waves', label: 'Scene' },
@@ -18,7 +18,11 @@ export const RADIAL = [
   { id: 'bodies', icon: 'sphere', label: 'Bodies' },
   { id: 'motion', icon: 'motion', label: 'Motion' },
   { id: 'drop', icon: 'sparkle', label: 'Release' },
+  { id: 'splash', icon: 'wind', label: 'Splash' },
   { id: 'rain', icon: 'cloud', label: 'Driftfall' },
+  { id: 'capture', icon: 'camera', label: 'Capture' },
+  { id: 'clear', icon: 'trash', label: 'Clear' },
+  { id: 'surprise', icon: 'dice', label: 'Surprise' },
   { id: 'quiet', icon: 'expand', label: 'Quiet' }
 ];
 
@@ -40,15 +44,19 @@ export function buildRadial(root, { onSelect }) {
         <path class="bar bar-mid" d="M4 12h16"/>
         <path class="bar bar-bot" d="M4 17h16"/>
       </svg>
-    </button>`;
+    </button>
+    <div class="radial-caption" aria-hidden="true"></div>`;
 
   const trigger = $('.radial-trigger', root);
+  const caption = $('.radial-caption', root);
   root.style.setProperty('--options', RADIAL.length);
 
+  const labelFor = id => (RADIAL.find(r => r.id === id) || {}).label || '';
   const setOpen = open => {
     root.classList.toggle('open', open);
     trigger.setAttribute('aria-expanded', String(open));
     trigger.setAttribute('aria-label', open ? 'Close controls' : 'Open controls');
+    if (!open) caption.textContent = '';
   };
   const setActive = id => {
     const idx = RADIAL.findIndex(r => r.id === id);
@@ -59,6 +67,13 @@ export function buildRadial(root, { onSelect }) {
       el.dataset.active = on ? 'true' : 'false';
       el.setAttribute('aria-current', on ? 'true' : 'false');
     });
+    if (!root.classList.contains('open')) caption.textContent = labelFor(id);
+  };
+  const highlight = id => {
+    const idx = RADIAL.findIndex(r => r.id === id);
+    if (idx < 0) return;
+    root.style.setProperty('--selected', idx + 1);
+    caption.textContent = labelFor(id);
   };
 
   trigger.addEventListener('click', () => setOpen(!root.classList.contains('open')));
@@ -68,14 +83,13 @@ export function buildRadial(root, { onSelect }) {
       setOpen(false);
       onSelect(id);
     });
-    el.addEventListener('pointerenter', () => {
-      const idx = RADIAL.findIndex(r => r.id === el.dataset.id);
-      if (idx >= 0) root.style.setProperty('--selected', idx + 1);
-    });
-    el.addEventListener('focus', () => {
-      const idx = RADIAL.findIndex(r => r.id === el.dataset.id);
-      if (idx >= 0) root.style.setProperty('--selected', idx + 1);
-    });
+    el.addEventListener('pointerenter', () => highlight(el.dataset.id));
+    el.addEventListener('focus', () => highlight(el.dataset.id));
+  });
+  root.addEventListener('pointerleave', () => {
+    const cur = root.style.getPropertyValue('--selected');
+    const idx = parseInt(cur, 10) - 1;
+    if (idx >= 0) caption.textContent = labelFor(RADIAL[idx].id);
   });
 
   document.addEventListener('pointerdown', e => {
@@ -107,6 +121,8 @@ const SLIDERS = {
     { key: 'chop', label: 'Chop', min: 50, max: 150, fmt: v => `${(v / 100).toFixed(2)}×` },
     { key: 'sparkle', label: 'Glitter', min: 0, max: 100, fmt: pct },
     { key: 'detail', label: 'Surface detail', min: 0, max: 100, fmt: detailWord },
+    { key: 'foamDensity', label: 'Foam', min: 0, max: 180, fmt: pct },
+    { key: 'splashPower', label: 'Splash force', min: 0, max: 200, fmt: pct },
     { key: 'exposure', label: 'Exposure', min: 60, max: 130, fmt: v => `${(v / 100).toFixed(2)}×` }
   ],
   motion: [
@@ -132,12 +148,13 @@ const TOGGLES = {
     { key: 'vignette', label: 'Vignette', hint: 'Darken the corners' }
   ],
   water: [
-    { key: 'foam', label: 'Foam', hint: 'Breaking crests and object wakes' },
+    { key: 'foam', label: 'Foam', hint: 'Breaking crests, wakes and object trails' },
+    { key: 'wake', label: 'Body wakes', hint: 'The V a moving body drags behind it' },
     { key: 'caustic', label: 'Caustic shimmer', hint: 'Light refocused by the surface' }
   ],
   motion: [
     { key: 'orbit', label: 'Horizon drift', hint: 'The camera turns by itself, slowly' },
-    { key: 'spray', label: 'Sea spray', hint: 'Keep the airborne droplets' },
+    { key: 'spray', label: 'Sea spray', hint: 'The fine mist thrown up by the water' },
     { key: 'slowmo', label: 'Slow motion', hint: 'Quarter-speed simulation' },
     { key: 'hud', label: 'Performance readout', hint: 'Frame rate, resolution, bodies' }
   ],

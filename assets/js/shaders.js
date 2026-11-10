@@ -109,7 +109,7 @@ void main(){
   vec2 p0=s*600.0*(exp(6.0*au)-1.0)/(exp(6.0)-1.0);
   float sp=0.0417*(max(abs(p0.x),abs(p0.y))+1.5);
   vec3 disp=vec3(0.0);
-  float nx=0.0,nz=0.0,ny=0.0,jxx=0.0,jzz=0.0,jxz=0.0;
+  float nx=0.0,nz=0.0,ny=0.0,jxx=0.0,jzz=0.0,jxz=0.0,sumA=0.0;
   for(int i=0;i<8;i++){
     vec4 w=uW[i]; float k=w.z; float L=6.2831853/k;
     float f=smoothstep(1.5*sp,4.5*sp,L);
@@ -121,26 +121,48 @@ void main(){
     disp.y+=A*sn;
     nx-=w.x*k*A*cs; nz-=w.y*k*A*cs; ny+=q*sn;
     jxx+=q*w.x*w.x*sn; jzz+=q*w.y*w.y*sn; jxz+=q*w.x*w.y*sn;
+    sumA+=A;
   }
   vec3 pos=vec3(p0.x+disp.x,disp.y,p0.y+disp.z);
   vWorld=pos;
   vWaveY=disp.y;
   vN=vec3(nx,1.0-ny,nz);
   float J=(1.0-jxx)*(1.0-jzz)-jxz*jxz;
-  vFoam=1.0-smoothstep(0.40,0.72,J);
+  /* whitecaps: the surface has to be folding *and* near the top of a crest */
+  float crest=smoothstep(-0.25,0.55,disp.y/max(sumA,1e-4));
+  vFoam=(1.0-smoothstep(0.16,0.62,J))*crest;
   gl_Position=uVP*vec4(pos,1.0);
 }`;
 
 /* ---- Water fragment: fresnel, planar reflection, refraction, SSS, foam, glitter.
        Interactive ripples are parallax-corrected per fragment, so the wave
-       mesh can stay light while the water still reads as liquid up close. ---- */
+       mesh can stay light while the water still reads as liquid up close.
+       Bodies in the water are not painted on: they press a bowl into the
+       surface, raise a meniscus, trail a Kelvin wake and gather foam.   ---- */
 export const WATER_FS = HDR + COMMON + `
 in vec3 vWorld; in vec3 vN; in float vFoam; in float vWaveY;
 out vec4 o;
 uniform vec3 uCam,uCamR,uCamF;
-uniform float uRipR,uRipN,uA0,uClarity,uSparkle,uDetailAmt,uCaustic;
+uniform float uRipR,uRipN,uA0,uClarity,uSparkle,uDetailAmt,uCaustic,uFoamAmt,uWake;
 uniform vec2 uRes,uNF;
 uniform sampler2D uRip,uScene,uSceneD,uRefl;
+uniform vec4 uBallA[16];   /* x, z, radius, submerged fraction */
+uniform vec4 uBallB[16];   /* vx, vz, horizontal speed, wake */
+uniform int  uBallCount;
+
+/* The V that trails a body moving through the water. */
+float wakeH(vec2 rel, vec2 dir, float r, float sp, float t){
+  float along=dot(rel,dir);
+  if(along>0.0) return 0.0;
+  float behind=-along;
+  float lat=dot(rel,vec2(-dir.y,dir.x));
+  float wid=r*0.34+behind*0.11;
+  float kx=abs(lat)-behind*0.354;
+  float ridge=exp(-(kx*kx)/(wid*wid))*exp(-behind/(r*5.5));
+  float amp=min(sp*0.05,0.20);
+  float tw=sin(behind*6.5-t*3.2+lat*1.6)*exp(-behind/(r*2.4))*amp*0.20;
+  return ridge*amp+tw;
+}
 float linZ(float d){float z=2.0*d-1.0;return 2.0*uNF.x*uNF.y/(uNF.y+uNF.x-z*(uNF.y-uNF.x));}
 float edgeFade(vec2 ruv){
   return smoothstep(0.0,0.06,min(min(ruv.x,1.0-ruv.x),min(ruv.y,1.0-ruv.y)));
@@ -162,13 +184,72 @@ void main(){
     float tt=(vWorld.y+rh-uCam.y)/min(V.y,-2e-3);
     ripP=uCam.xz+V.xz*tt;
   }
-  float surfY=vWorld.y+rh;
   float ef=edgeFade(ruv);
   float e=1.0/uRipN;
   float hl=texture(uRip,ruv-vec2(e,0.0)).r, hr=texture(uRip,ruv+vec2(e,0.0)).r;
   float hd=texture(uRip,ruv-vec2(0.0,e)).r, hu=texture(uRip,ruv+vec2(0.0,e)).r;
   vec2 grad=vec2(hr-hl,hu-hd)*(uRipN/(4.0*uRipR));
   s-=grad*ef*1.35;
+
+  /* ---- bodies in the water: bowl, meniscus, wake, foam ---- */
+  vec2 bgrad=vec2(0.0);
+  float bdisp=0.0, bfoam=0.0, bao=0.0;
+  for(int i=0;i<16;i++){
+    if(i>=uBallCount) break;
+    vec4 A=uBallA[i]; vec4 B=uBallB[i];
+    float r=max(A.z,0.05);
+    vec2 rel=vWorld.xz-A.xy;
+    float rr=dot(rel,rel);
+    if(rr>(r*4.0)*(r*4.0)) continue;
+    float d=sqrt(rr);
+    float u=d/r;
+    vec2 dn=d>1e-4?rel/d:vec2(0.0);
+    float sub=A.w;
+
+    /* the bowl the body presses into the surface */
+    float kb=2.1;
+    float eb=exp(-kb*u*u);
+    float bowl=-sub*r*0.62*eb;
+    float dbowl=-sub*r*0.62*eb*(-2.0*kb*u/r);
+    /* the meniscus climbing the flank */
+    float wm=0.34;
+    float mu=(u-1.0)/wm;
+    float em=exp(-mu*mu);
+    float men=sub*r*0.26*em;
+    float dmen=sub*r*0.26*em*(-2.0*mu/(wm*r));
+
+    bdisp+=bowl+men;
+    bgrad+=dn*(dbowl+dmen);
+    bao+=sub*exp(-u*u*0.8);
+
+    /* foam gathered where the body cuts the surface */
+    float sp=B.z;
+    float tc=(u-1.0)/0.30;
+    bfoam+=exp(-tc*tc)*min(sp*0.32,0.9)*(0.30+0.70*sub);
+
+    /* the wake */
+    if(sp>0.2){
+      vec2 vd=B.xy; float vl=length(vd);
+      vec2 dir=vd/max(vl,1e-4);
+      vec2 nrm=vec2(-dir.y,dir.x);
+      if(dot(rel,dir)<0.0){
+        float ew=max(r*0.12,0.02);
+        float h0=wakeH(rel,dir,r,sp,uTime);
+        float hx=wakeH(rel+nrm*ew,dir,r,sp,uTime);
+        float hy=wakeH(rel+dir*ew,dir,r,sp,uTime);
+        bdisp+=h0*uWake;
+        bgrad+=(nrm*(hx-h0)+dir*(hy-h0))/ew*uWake;
+        float lat=dot(rel,nrm);
+        float wid=r*0.55+0.05;
+        float tw=lat/wid;
+        float behind=max(-dot(rel,dir),0.0);
+        float trail=exp(-tw*tw)*exp(-behind/(r*4.0));
+        bfoam+=trail*min(sp*0.24,0.95)*uWake;
+      }
+    }
+  }
+  bfoam=clamp(bfoam,0.0,1.5);
+  s-=bgrad;
 
   /* ---- capillary detail, faded with distance to keep it stable ---- */
   float df=1.0/(1.0+dist*0.030);
@@ -181,9 +262,25 @@ void main(){
   float dw=(0.34+0.60*uStorm)*df*uDetailAmt;
   s+=(d1.xz*0.85+d2.xz*0.62+d3.xz*0.32)*dw;
   s*=mix(1.0,0.5,smoothstep(60.0,400.0,dist));
+
+  /* ---- foam field: breaking crests, wakes and trails ---- */
+  float foamAmt=clamp(vFoam*1.15+foamSim*1.15*uFoamAmt+bfoam*uFoamAmt,0.0,1.6);
+  float fn=texture(uDetail,vWorld.xz*0.55+vec2(uTime*0.010,-uTime*0.013)).a*0.62
+          +texture(uDetail,vWorld.xz*1.90-vec2(uTime*0.020,0.0)).a*0.38;
+  float thr=1.04-foamAmt*0.74;
+  float fm=smoothstep(thr,thr+0.26,fn);
+  float bub=texture(uDetail,vWorld.xz*3.60+vec2(-uTime*0.026,uTime*0.031)).a;
+  fm+=smoothstep(0.66,0.93,bub)*min(foamAmt,1.0)*0.30;
+  fm=clamp(fm,0.0,1.0);
+  /* foam is froth: it breaks the surface up */
+  float fr1=texture(uDetail,vWorld.xz*2.20+vec2(uTime*0.048,uTime*0.011)).a;
+  float fr2=texture(uDetail,vWorld.xz*2.20+vec2(-uTime*0.017,-uTime*0.043)).a;
+  s+=vec2(fr1-0.5,fr2-0.5)*fm*0.42;
+
   vec3 N=normalize(vec3(s.x,1.0,s.y));
   float nv=max(dot(N,V),0.0);
   float F=0.02+0.98*pow(1.0-nv,5.0);
+  float surfY=vWorld.y+rh+bdisp;
 
   /* ---- reflection: analytic sky + mirrored geometry ---- */
   vec3 R=reflect(-V,N); R.y=abs(R.y);
@@ -197,6 +294,7 @@ void main(){
   vec3 L=uSun;
   float hh=clamp((surfY-vWaveY)/(uA0*2.0+0.35)*0.5+0.55,0.0,1.0);
   float back=pow(clamp(dot(L,-V)*0.5+0.5,0.0,1.0),3.0);
+  float aoTrough=mix(0.86,1.0,smoothstep(-uA0*1.3,uA0*1.3,vWaveY));
   vec3 deep=vec3(0.004,0.034,0.070);
   vec3 tq=vec3(0.04,0.40,0.34);
   vec3 body=deep*(0.22+0.95*uAmbLum)
@@ -204,6 +302,7 @@ void main(){
            +tq*0.055*uAmbLum*pow(1.0-nv,2.0)*(0.4+hh)
            +vec3(0.0,0.055,0.065)*uAmbLum*hh;
   body*=mix(vec3(1.0),uHorizon*1.4,0.25);
+  body*=aoTrough;
 
   /* ---- refraction of submerged geometry ---- */
   float zW=linZ(gl_FragCoord.z);
@@ -220,10 +319,16 @@ void main(){
     float absorb=mix(1.7,0.55,uClarity);
     vec3 tr=exp(-thick*vec3(0.42,0.10,0.060)*absorb*(0.8+0.5*uStorm));
     vec3 tint=mix(body*0.7,body*1.15,uClarity);
-    refr=dec(sc.rgb)*tr+tint*(1.0-tr);
+    /* a little dispersion: red bends less than blue */
+    vec3 rc=dec(texture(uScene,clamp(uvq+off*0.036,vec2(0.001),vec2(0.999))).rgb);
+    vec3 bc=dec(texture(uScene,clamp(uvq-off*0.036,vec2(0.001),vec2(0.999))).rgb);
+    vec3 gc=dec(sc.rgb);
+    refr=vec3(rc.r,gc.g,bc.b)*tr+tint*(1.0-tr);
   }
 
   vec3 col=mix(refr,refl,F);
+  /* the body shades the water it sits in */
+  col*=mix(1.0,clamp(1.0-bao*0.55,0.0,1.0),0.6);
 
   /* ---- sun glitter (GGX) ---- */
   vec3 H=normalize(L+V);
@@ -237,15 +342,10 @@ void main(){
   vec3 spec=uSunCol*min(D*Fs/(4.0*max(nv,0.08)),22.0)*smoothstep(0.0,0.12,nl)*step(0.0,L.y);
   spec*=uSparkle;
 
-  /* ---- foam: breaking crests + object trails ---- */
-  float foamAmt=clamp(vFoam+foamSim*1.25,0.0,1.0);
-  float fn=texture(uDetail,vWorld.xz*0.55+vec2(uTime*0.010,-uTime*0.013)).a*0.6
-          +texture(uDetail,vWorld.xz*1.90-vec2(uTime*0.020,0.0)).a*0.4;
-  float thr=1.0-foamAmt*1.15;
-  float fm=smoothstep(thr,thr+0.18,fn);
-  float foamLight=0.42*uAmbLum+0.22*uSunLum*max(dot(N,L),0.0);
-  vec3 foamCol=vec3(0.94,0.97,1.0)*foamLight;
-  col=mix(col+spec*(1.0-fm),foamCol,fm*0.92);
+  /* ---- foam: breaking crests + object wakes ---- */
+  float foamLight=0.50*uAmbLum+0.30*uSunLum*max(dot(N,L),0.0);
+  vec3 foamCol=vec3(0.95,0.98,1.0)*foamLight;
+  col=mix(col+spec*(1.0-fm),foamCol,fm*0.94);
 
   /* ---- optional caustic shimmer: refocused light on the water body ---- */
   if(uCaustic>0.001){
@@ -377,24 +477,40 @@ void main(){
   else o=vec4(tonemap(col),1.0);
 }`;
 
-/* ---- Spray particles ---- */
+/* ---- Spray particles: heavy droplets, drifting mist and sheets of foam ---- */
 export const PART_VS = HDR + `
-layout(location=0) in vec3 aPos; layout(location=1) in vec2 aInfo;
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aInfo;
 uniform mat4 uVP; uniform float uPx;
-out float vA;
+out float vA; flat out int vKind;
 void main(){
   vec4 c=uVP*vec4(aPos,1.0);
   gl_Position=c;
-  gl_PointSize=clamp(aInfo.x*uPx/max(c.w,0.1),1.5,56.0);
+  gl_PointSize=clamp(aInfo.x*uPx/max(c.w,0.1),1.5,72.0);
   vA=aInfo.y;
+  vKind=int(aInfo.z+0.5);
 }`;
 export const PART_FS = HDR + COMMON + `
-in float vA; out vec4 o;
+in float vA; flat in int vKind; out vec4 o;
 void main(){
   vec2 q=gl_PointCoord*2.0-1.0; float d=dot(q,q);
   if(d>1.0) discard;
-  float a=(1.0-d)*vA;
-  vec3 c=vec3(0.9,0.95,1.0)*(0.45*uAmbLum+0.22*uSunLum);
-  c+=uSunCol*0.08*smoothstep(0.2,-0.6,q.y+q.x*0.3);
-  o=vec4(tonemap(c),a*(0.55+0.45*uAmbLum));
+  if(vKind==1){
+    /* mist: soft, wide, almost transparent */
+    float a=exp(-d*2.4)*vA*0.55;
+    vec3 c=vec3(0.86,0.92,1.0)*(0.42*uAmbLum+0.20*uSunLum);
+    o=vec4(tonemap(c),a);
+  } else if(vKind==2){
+    /* a sheet of foam torn off the surface */
+    float a=(1.0-d)*vA;
+    float b=texture(uDetail,q*0.5+0.5).a;
+    a*=0.25+0.75*smoothstep(0.12,0.72,b);
+    vec3 c=vec3(0.95,0.98,1.0)*(0.52*uAmbLum+0.30*uSunLum);
+    o=vec4(tonemap(c),a);
+  } else {
+    /* a droplet: bright rim, dark middle */
+    float a=(1.0-d)*vA;
+    vec3 c=vec3(0.9,0.95,1.0)*(0.45*uAmbLum+0.22*uSunLum);
+    c+=uSunCol*0.55*smoothstep(0.35,-0.55,q.y+q.x*0.28);
+    o=vec4(tonemap(c),a*(0.55+0.45*uAmbLum));
+  }
 }`;
