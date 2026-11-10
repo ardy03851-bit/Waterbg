@@ -196,16 +196,16 @@ export function makeSphere(gl, LA = 40, LO = 64) {
 }
 
 export function makeParticleBuffers(gl, max) {
-  const data = new Float32Array(max * 5);
+  const data = new Float32Array(max * 6);
   const vao = gl.createVertexArray();
   const buf = gl.createBuffer();
   gl.bindVertexArray(vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, data.byteLength, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
   gl.enableVertexAttribArray(1);
-  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
   gl.bindVertexArray(null);
   return { vao, buf, data };
 }
@@ -380,7 +380,7 @@ export class Renderer {
     if (!count) return;
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, count * 5);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, count * 6);
     const p = this.pPart.use();
     this.applySky(p, sky, simT);
     p.m4('uVP', camera.vp);
@@ -393,6 +393,33 @@ export class Renderer {
     gl.bindVertexArray(null);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /* Bodies are handed to the water shader so it can press a bowl into the
+     surface around them, raise a meniscus and trail a wake. The nearest
+     ones win: beyond a dozen the effect is invisible anyway.            */
+  packBalls(balls, camera, max = 16) {
+    const A = this.ballA || (this.ballA = new Float32Array(max * 4));
+    const B = this.ballB || (this.ballB = new Float32Array(max * 4));
+    const sel = this._ballSel || (this._ballSel = []);
+    sel.length = 0;
+    for (let i = 0; i < balls.length; i++) sel.push(i);
+    const tx = camera.target[0], tz = camera.target[2];
+    sel.sort((p, q) => {
+      const a = balls[p], b = balls[q];
+      const da = (a.x - tx) * (a.x - tx) + (a.z - tz) * (a.z - tz);
+      const db = (b.x - tx) * (b.x - tx) + (b.z - tz) * (b.z - tz);
+      return da - db;
+    });
+    const n = Math.min(balls.length, max);
+    for (let i = 0; i < n; i++) {
+      const b = balls[sel[i]];
+      const rvx = b.rvx === undefined ? b.vx : b.rvx;
+      const rvz = b.rvz === undefined ? b.vz : b.rvz;
+      A[i * 4] = b.x; A[i * 4 + 1] = b.z; A[i * 4 + 2] = b.r; A[i * 4 + 3] = b.sub || 0;
+      B[i * 4] = rvx; B[i * 4 + 1] = rvz; B[i * 4 + 2] = Math.hypot(rvx, rvz); B[i * 4 + 3] = b.wake || 0;
+    }
+    return n;
   }
 
   drawWater(camera, sky, simT, waveUniforms, ripples, opts) {
@@ -411,8 +438,14 @@ export class Renderer {
     p.u1f('uSparkle', opts.sparkle);
     p.u1f('uDetailAmt', opts.detail);
     p.u1f('uCaustic', opts.caustic);
+    p.u1f('uFoamAmt', opts.foamAmt);
+    p.u1f('uWake', opts.wake);
     p.u2f('uRes', camera.width, camera.height);
     p.u2f('uNF', camera.near, camera.far);
+    const nb = this.packBalls(opts.balls || [], camera, 16);
+    p.u4v('uBallA', this.ballA);
+    p.u4v('uBallB', this.ballB);
+    p.u1i('uBallCount', nb);
 
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texDetail);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ripples.texture);

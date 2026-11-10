@@ -15,11 +15,12 @@ const DEFAULTS = {
   sea: 38, time: 58, weather: 18, mood: 'dusk', preset: 'golden',
   /* water */
   clarity: 62, chop: 1, sparkle: 78, detail: 82,
+  foamDensity: 100, splashPower: 100,
   /* light */
   exposure: 100,
   /* toggles */
   reflection: true, refraction: true, stars: false, aurora: false,
-  caustic: false, foam: true,
+  caustic: false, foam: true, wake: true,
   /* motion */
   orbit: false, spray: true, slowmo: false,
   speed: 100, gravity: 100, bounce: 100, distance: 132,
@@ -126,7 +127,11 @@ class App {
 
   onRadial(id) {
     if (id === 'drop') { this.action('drop'); return; }
+    if (id === 'splash') { this.action('splash'); return; }
     if (id === 'rain') { this.action('driftfall'); return; }
+    if (id === 'capture') { this.action('screenshot'); return; }
+    if (id === 'clear') { this.action('clear'); return; }
+    if (id === 'surprise') { this.action('randomize'); return; }
     if (id === 'quiet') { this.quiet(true); return; }
     this.radial.setActive(id);
     if (this.panel.isOpen() && this.panel.section === id) this.panel.close();
@@ -186,6 +191,8 @@ class App {
     this.physics.timeScale = S.slowmo ? 0.28 : S.speed / 100;
     this.physics.gravityScale = S.gravity / 100;
     this.physics.restitution = S.bounce / 100;
+    this.physics.splashScale = S.splashPower / 100;
+    this.physics.sprayScale = S.spray ? 1 : 0.2;
     this.physics.setSea(S.sea / 100);
 
     // sky targets
@@ -209,7 +216,9 @@ class App {
 
     this.qualityScale = S.qualityScale;
     this.scaleCeiling = Math.max(0.65, Math.min(MAX_DPR * 1.2, MAX_DPR * S.qualityScale));
-    this.particlesEnabled = S.spray;
+    /* the crown of a splash is water, so it always shows; the toggle only
+       trims the fine mist that hangs in the air afterwards              */
+    this.particlesEnabled = true;
 
     document.body.classList.toggle('no-grain', !S.grain);
     document.body.classList.toggle('no-vignette', !S.vignette);
@@ -219,6 +228,7 @@ class App {
   action(name) {
     switch (name) {
       case 'drop': this.release(); break;
+      case 'splash': this.splash(); break;
       case 'shuffle': this.shuffle(); break;
       case 'clear': this.physics.clear(); toast('Water cleared'); break;
       case 'driftfall': this.driftfall(); break;
@@ -241,6 +251,22 @@ class App {
       S.body, 0, -0.3, 0
     );
     this.hint.hide();
+  }
+
+  /** A handful of bodies, thrown in hard enough to break the surface. */
+  splash() {
+    const S = this.settings;
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.7;
+      const rr = 1.2 + Math.random() * 3.4;
+      this.physics.spawn(
+        Math.cos(a) * rr, 2.6 + Math.random() * 3.4, Math.sin(a) * rr,
+        Math.floor(Math.random() * BODY_TYPES.length),
+        Math.cos(a) * 1.6, -3.4 - Math.random() * 2.2, Math.sin(a) * 1.6
+      );
+    }
+    toast('Splash');
   }
 
   shuffle() {
@@ -484,6 +510,7 @@ class App {
       else if (k === 'h') this.toggleHUD();
       else if (k === ' ') { e.preventDefault(); this.action('drop'); }
       else if (k === 'r') this.action('driftfall');
+      else if (k === 'x') this.action('splash');
       else if (k === 'c') this.action('clear');
       else if (k === 's') this.action('screenshot');
       else if (k === 'p') this.action('randomize');
@@ -669,7 +696,10 @@ class App {
       clarity: this.settings.clarity / 100,
       sparkle: this.settings.sparkle / 100,
       detail: 0.35 + 1.3 * (this.settings.detail / 100),
-      caustic: this.settings.caustic ? 1 : 0
+      caustic: this.settings.caustic ? 1 : 0,
+      foamAmt: (this.settings.foam ? 1 : 0) * (this.settings.foamDensity / 100),
+      wake: this.settings.wake ? 1 : 0,
+      balls: this.physics.balls
     });
 
     /* above-water bodies */
