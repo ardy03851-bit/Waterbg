@@ -7,136 +7,167 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#06121c">
-<title>Waterbg · Cozy Ocean</title>
-<link rel="stylesheet" href="css/style.css">
+<title>Aqua · Ocean & Ball Physics Showcase</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{
+  --ink:#e8e6df;--muted:#9ba7a7;--faint:#647477;--panel:rgba(8,17,21,.88);
+  --line:rgba(218,230,220,.16);--accent:#b7d6c8;--accent-strong:#d8e9dc;
+  --sea:#06151b;--warm:#c8a77b;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--sea);font-family:'Manrope',-apple-system,sans-serif;color:var(--ink);user-select:none;-webkit-user-select:none;overscroll-behavior:none}
+button,input{font:inherit}
+button{color:inherit}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#top{position:fixed;top:max(22px,env(safe-area-inset-top));left:max(26px,env(safe-area-inset-left));right:max(26px,env(safe-area-inset-right));display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;gap:16px;transition:opacity .45s,transform .55s cubic-bezier(.2,.8,.2,1)}
+.brand{display:flex;align-items:center;gap:13px;padding:7px 0}
+.logo{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(183,214,200,.42);color:var(--accent);border-radius:9px}
+.logo svg{width:19px;height:19px}
+.brand h1{margin:0;font-family:Georgia,serif;font-weight:400;font-size:21px;letter-spacing:.035em}
+.brand p{margin:3px 0 0;color:var(--muted);font-size:9px;letter-spacing:.17em;text-transform:uppercase}
+.stats{font:10px/1.8 'DM Mono',monospace;letter-spacing:.04em;color:#d1d8d2;text-align:right;padding:8px 0}
+#hint{position:fixed;left:50%;top:max(94px,calc(env(safe-area-inset-top) + 78px));transform:translateX(-50%);padding:8px 13px;border:1px solid rgba(218,230,220,.16);background:rgba(7,17,21,.62);color:#d0d9d2;font-size:10px;letter-spacing:.055em;white-space:nowrap;pointer-events:none;transition:opacity .8s;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#dock{position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(1040px,calc(100% - 52px));padding:17px 19px 16px;background:var(--panel);border:1px solid var(--line);box-shadow:0 18px 60px rgba(0,0,0,.38);display:flex;flex-direction:column;gap:15px;transition:transform .55s cubic-bezier(.2,.8,.2,1),opacity .35s;backdrop-filter:blur(10px)}
+#dock.hidden{transform:translate(-50%,150%);opacity:0;pointer-events:none}
+.dock-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.eyebrow{font:9px 'DM Mono',monospace;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.dock-head strong{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.icon-btn{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;transition:color .2s,border-color .2s,background .2s}
+.icon-btn:hover{color:var(--ink);border-color:rgba(183,214,200,.55);background:rgba(183,214,200,.07)}
+.icon-btn svg,.btn svg,.chip svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.chips{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:1 0 auto;min-width:122px;display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);background:rgba(255,255,255,.025);color:var(--muted);font-size:11px;font-weight:600;text-align:left;cursor:pointer;transition:all .22s}
+.chip small{display:block;color:var(--faint);font:9px 'DM Mono',monospace;margin-top:4px}
+.chip.on{color:var(--ink);border-color:rgba(183,214,200,.62);background:rgba(183,214,200,.09)}
+.sw{width:27px;height:27px;flex:none;position:relative;border-radius:50%;box-shadow:inset -4px -5px 9px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.3)}
+.row{display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap}
+.ctl{flex:1 1 150px;display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:600;min-width:120px}
+.ctl .lab{display:flex;justify-content:space-between;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font:9px 'DM Mono',monospace}
+.ctl .lab b{color:var(--accent);font-weight:500}
+input[type=range]{appearance:none;width:100%;height:22px;background:transparent;margin:0;touch-action:pan-y}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:linear-gradient(90deg,var(--accent) var(--p,50%),rgba(255,255,255,.18) var(--p,50%))}
+input[type=range]::-moz-range-track{height:2px;background:rgba(255,255,255,.18)}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;margin-top:-5px;background:var(--accent-strong);border:2px solid #223b38;box-shadow:0 0 0 3px rgba(183,214,200,.12)}
+input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--accent-strong);border:2px solid #223b38}
+.acts{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.btn{min-height:39px;padding:0 13px;border:1px solid var(--line);background:transparent;color:#c4ceca;font-size:10px;font-weight:600;letter-spacing:.055em;display:inline-flex;align-items:center;gap:8px;cursor:pointer;transition:background .2s,color .2s,border-color .2s,transform .15s}
+.btn:hover{border-color:rgba(183,214,200,.55);color:var(--ink);background:rgba(183,214,200,.07)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#10211f}
+.btn.primary:hover{background:var(--accent-strong)}
+.btn.on{background:rgba(183,214,200,.13);border-color:rgba(183,214,200,.55);color:var(--accent-strong)}
+#bHide{margin-left:auto}
+#fab{position:fixed;right:max(26px,env(safe-area-inset-right));bottom:max(22px,env(safe-area-inset-bottom));min-height:42px;padding:0 14px;border:1px solid var(--line);background:var(--panel);display:none;align-items:center;gap:9px;color:var(--ink);font:10px 'DM Mono',monospace;letter-spacing:.1em;cursor:pointer;backdrop-filter:blur(10px)}
+#fab.show{display:inline-flex}
+#settings{position:fixed;right:max(26px,env(safe-area-inset-right));top:max(78px,calc(env(safe-area-inset-top) + 70px));width:min(330px,calc(100vw - 40px));padding:17px;background:var(--panel);border:1px solid var(--line);box-shadow:0 18px 60px rgba(0,0,0,.42);backdrop-filter:blur(12px);opacity:0;visibility:hidden;transform:translateY(-8px);transition:opacity .22s,transform .22s,visibility .22s;z-index:5}
+#settings.open{opacity:1;visibility:visible;transform:translateY(0)}
+.settings-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.settings-title strong{font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.setting{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.setting-copy b{display:block;font-size:11px;font-weight:600}
+.setting-copy small{display:block;margin-top:3px;color:var(--muted);font-size:9px}
+.toggle{width:34px;height:19px;border:1px solid #53605e;background:#1b282a;padding:2px;cursor:pointer;flex:none;transition:background .2s,border-color .2s}
+.toggle:after{content:"";display:block;width:13px;height:13px;background:#9ba7a7;transition:transform .2s,background .2s}
+.toggle[aria-checked=true]{background:#668f7d;border-color:#9fc8b1}
+.toggle[aria-checked=true]:after{transform:translateX(15px);background:#f0f1e8}
+#immersive-exit{position:fixed;inset:0;z-index:20;display:none;cursor:default;background:transparent}
+body.immersive #top,body.immersive #hint,body.immersive #dock,body.immersive #fab,body.immersive #settings{opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(12px)}
+body.immersive #immersive-exit{display:block}
+#fail,#err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:30px;background:#06121c;z-index:99;font-size:15px;line-height:1.5;white-space:pre-wrap}
+#err{justify-content:flex-start;align-items:flex-start;font:11px/1.35 ui-monospace,Menlo,monospace;overflow:auto;color:#ffb4b4}
+@media(max-width:760px){
+ #top{left:18px;right:18px;top:max(14px,env(safe-area-inset-top))}
+ .brand p{display:none}.brand h1{font-size:18px}.stats{font-size:9px}
+ #dock{width:calc(100% - 24px);bottom:max(10px,env(safe-area-inset-bottom));padding:12px;gap:11px}
+ .chip{min-width:112px}.row{gap:12px}.ctl{flex:1 1 42%;min-width:100px}
+ .btn{min-height:36px;padding:0 10px;font-size:9px}
+ #bHide{margin-left:0}#fab{right:12px;bottom:max(10px,env(safe-area-inset-bottom))}
+ #settings{right:12px;top:max(65px,calc(env(safe-area-inset-top) + 58px))}
+ #hint{font-size:9px;max-width:calc(100% - 24px)}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
 </head>
 <body>
-
 <canvas id="gl"></canvas>
 
-<!-- UI shell (hidden in fullscreen UI-hide mode) -->
-<div class="ui-shell" id="uiShell">
-
-  <div id="top">
-    <div class="brand glass" style="--glass:rgba(14,24,38,.62);--stroke:rgba(255,255,255,.14)">
-      <div class="logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#02111c" stroke-width="2.4" stroke-linecap="round">
-          <path d="M2 14c2.5-3 4.5-3 7 0s4.5 3 7 0 4.5-3 6 0"/><circle cx="12" cy="6" r="2.4" fill="#02111c" stroke="none"/>
-        </svg>
-      </div>
-      <div>
-        <h1>Waterbg</h1>
-        <p>Cozy ocean physics</p>
-      </div>
-    </div>
-    <div class="stats glass" id="stats" style="--glass:rgba(14,24,38,.62)">—</div>
+<div id="top">
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M2 15c2.5-2.7 4.5-2.7 7 0s4.5 2.7 7 0 4.5-2.7 6 0M2 9c2.5-2.7 4.5-2.7 7 0s4.5 2.7 7 0 4.5-2.7 6 0"/></svg></div>
+    <div><h1>Stillwater</h1><p>An ocean to disappear into</p></div>
   </div>
-
-  <div id="hint" class="glass">Tap the sea to drop a ball · Drag to orbit · Pinch to zoom · Grab a ball and fling it</div>
-
-  <section id="dock" class="glass"></section>
+  <div class="stats" id="stats">—</div>
 </div>
-
-<!-- Circular radial menu (glassmorphic merged style) -->
-<div class="waterbg-menu" id="waterbgMenu">
-  <div class="options">
-    <label class="option" style="--i: 1;">
-      <input class="option-input" type="radio" name="waterbg-option" value="1" />
-      <span class="option-inner" data-tooltip="Drop ball">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v-1m-9-8h18M12 3v1m0 16v-1m-9-8h18m-11 0h18"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 2;">
-      <input class="option-input" type="radio" name="waterbg-option" value="2" />
-      <span class="option-inner" data-tooltip="Ball rain">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 3;">
-      <input class="option-input" type="radio" name="waterbg-option" value="3" />
-      <span class="option-inner" data-tooltip="Ball type">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 4;">
-      <input class="option-input" type="radio" name="waterbg-option" value="4" />
-      <span class="option-inner" data-tooltip="Sea state">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m15 11.25 1.5 1.5.75-.75V8.758l2.276-.61a3 3 0 1 0-3.675-3.675l-.61 2.277H12l-.75.75 1.5 1.5M15 11.25l-8.47 8.47c-.34.34-.8.53-1.28.53s-.94.19-1.28.53l-.97.97-.75-.75.97-.97c.34-.34.53-.8.53-1.28s.19-.94.53-1.28L12.75 9M15 11.25 12.75 9"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 5;">
-      <input class="option-input" type="radio" name="waterbg-option" value="5" />
-      <span class="option-inner" data-tooltip="Sky time">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 6;">
-      <input class="option-input" type="radio" name="waterbg-option" value="6" />
-      <span class="option-inner" data-tooltip="Graphics">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-2.25-1.313M21 7.5v2.25m0-2.25-2.25 1.313M3 7.5l2.25-1.313M3 7.5l2.25 1.313M3 7.5v2.25m9 3 2.25-1.313M12 12.75l-2.25-1.313M12 12.75V15m0 6.75 2.25-1.313M12 21.75V19.5m0 2.25-2.25-1.313m0-16.875L12 2.25l2.25 1.313M21 14.25v2.25l-2.25 1.313m-13.5 0L3 16.5v-2.25"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 7;">
-      <input class="option-input" type="radio" name="waterbg-option" value="7" />
-      <span class="option-inner" data-tooltip="Reset camera">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"></path>
-        </svg>
-      </span>
-    </label>
-    <label class="option" style="--i: 8;">
-      <input class="option-input" type="radio" name="waterbg-option" value="8" />
-      <span class="option-inner" data-tooltip="Fullscreen">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"></path>
-        </svg>
-      </span>
-    </label>
+<div id="hint">DRAG TO LOOK AROUND&nbsp;&nbsp;·&nbsp;&nbsp;TAP THE WATER TO RELEASE A SPHERE</div>
+<section id="dock">
+  <div class="dock-head"><div><div class="eyebrow">Environment / 01</div><strong>Shape the quiet</strong></div>
+    <button class="icon-btn" id="bSettings" aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 13.5 1.1.8-1.1 1.9-1.3-.5a7.8 7.8 0 0 1-1.5.9l-.2 1.4h-2.2l-.3-1.4a7.8 7.8 0 0 1-1.7 0l-.8 1.2-1.9-1.1.5-1.3a7.8 7.8 0 0 1-.9-1.5l-1.4-.2v-2.2l1.4-.3a7.8 7.8 0 0 1 0-1.7L6 8.7l1.1-1.9 1.3.5a7.8 7.8 0 0 1 1.5-.9l.2-1.4h2.2l.3 1.4a7.8 7.8 0 0 1 1.7 0l.8-1.2 1.9 1.1-.5 1.3a7.8 7.8 0 0 1 .9 1.5l1.4.2v2.2l-1.4.3"/></svg></button>
   </div>
-
-  <div class="menu-ring"></div>
-  <div class="selector-light"></div>
-
-  <div class="btn">
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      class="btn-svg"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      aria-hidden="true"
-    >
-      <path class="morph-line top" d="M4 7 L20 7"></path>
-      <path class="morph-line middle" d="M4 12 L20 12"></path>
-      <path class="morph-line bottom" d="M4 17 L20 17"></path>
-    </svg>
-    <input type="checkbox" name="menu" id="waterbgMenuInput" class="menu-input" />
+  <div class="chips" id="chips"></div>
+  <div class="row">
+    <label class="ctl"><span class="lab">Sphere scale <b id="vSize">1.0×</b></span><input id="sSize" type="range" min="50" max="220" value="100"></label>
+    <label class="ctl"><span class="lab">Wave intensity <b id="vSea">Moderate</b></span><input id="sSea" type="range" min="0" max="100" value="38"></label>
+    <label class="ctl"><span class="lab">Daylight <b id="vSun">Afternoon</b></span><input id="sSun" type="range" min="0" max="100" value="58"></label>
   </div>
-</div>
-
-<!-- Fullscreen hint (shown when UI hidden) -->
-<div id="fsHint">Click anywhere to show controls</div>
-
-<div id="fail">Waterbg needs WebGL 2. Please update your browser or device.</div>
+  <div class="acts">
+    <button class="btn primary" id="bDrop"><svg viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M5 21h14"/></svg>Release sphere</button>
+    <button class="btn" id="bRain"><svg viewBox="0 0 24 24"><path d="M8 16a4 4 0 1 1 1-7.9A5 5 0 0 1 19 10a3 3 0 0 1 0 6H8Zm1 3-1 2m6-2-1 2m6-2-1 2"/></svg>Driftfall</button>
+    <button class="btn" id="bSlow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Slow time</button>
+    <button class="btn" id="bClear"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Clear</button>
+    <button class="btn" id="bFullscreen" title="Hide interface"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>Enter quiet mode</button>
+    <button class="btn" id="bHide"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>Hide panel</button>
+  </div>
+</section>
+<button id="fab"><svg viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></svg> SHOW CONTROLS</button>
+<aside id="settings" aria-label="Environment settings">
+  <div class="settings-title"><strong>Atmosphere settings</strong><button class="icon-btn" id="bSettingsClose" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+  <div class="setting"><div class="setting-copy"><b>Slow horizon drift</b><small>Camera moves gently over time</small></div><button class="toggle" id="tOrbit" role="switch" aria-checked="false" aria-label="Slow horizon drift"></button></div>
+  <div class="setting"><div class="setting-copy"><b>Sea spray</b><small>Keep the small surface particles</small></div><button class="toggle" id="tSpray" role="switch" aria-checked="true" aria-label="Sea spray"></button></div>
+  <div class="setting"><div class="setting-copy"><b>Performance readout</b><small>Show frame rate and render detail</small></div><button class="toggle" id="tStats" role="switch" aria-checked="true" aria-label="Performance readout"></button></div>
+  <div class="setting"><div class="setting-copy"><b>Ambient motion</b><small>Reduce simulation speed for a calmer sea</small></div><button class="toggle" id="tAmbient" role="switch" aria-checked="false" aria-label="Ambient motion"></button></div>
+  <label class="ctl" style="margin-top:14px"><span class="lab">Render detail <b id="vQuality">Balanced</b></span><input id="sQuality" type="range" min="65" max="100" value="85"></label>
+  <label class="ctl" style="margin-top:12px"><span class="lab">Camera distance <b id="vDistance">13.0</b></span><input id="sDistance" type="range" min="50" max="450" value="130"></label>
+</aside>
+<div id="immersive-exit" aria-label="Click to show interface" title="Click to show interface"></div>
+<div id="fail">This showcase needs WebGL 2 (iPadOS 15+ / Safari 15+). Please update your device or browser.</div>
 <div id="err"></div>
 
-<!-- ── Shaders (must load before app.js) ── -->
 <script>
 'use strict';
+const $ = id => document.getElementById(id);
+function showErr(m){ const e=$('err'); e.style.display='flex'; e.textContent += m + '\n'; }
+window.addEventListener('error', ev => showErr(String(ev.message)));
+
+const canvas = $('gl');
+const gl = canvas.getContext('webgl2', {antialias:true, alpha:false, powerPreference:'high-performance'});
+if(!gl){ $('fail').style.display='flex'; throw new Error('WebGL2 unsupported'); }
+
+/* ============================================================
+   Constants & small math helpers
+   ============================================================ */
+const G=9.81, RHO_W=1000, RHO_A=1.2;
+const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const lerp3=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
+
+const M4={
+  persp(fovy,asp,n,f){const o=new Float32Array(16),t=1/Math.tan(fovy/2);o[0]=t/asp;o[5]=t;o[10]=(f+n)/(n-f);o[11]=-1;o[14]=2*f*n/(n-f);return o;},
+  look(e,c,u){
+    let zx=e[0]-c[0],zy=e[1]-c[1],zz=e[2]-c[2];let l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;
+    let xx=u[1]*zz-u[2]*zy,xy=u[2]*zx-u[0]*zz,xz=u[0]*zy-u[1]*zx;l=Math.hypot(xx,xy,xz);xx/=l;xy/=l;xz/=l;
+    const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+    return new Float32Array([xx,yx,zx,0,xy,yy,zy,0,xz,yz,zz,0,-(xx*e[0]+xy*e[1]+xz*e[2]),-(yx*e[0]+yy*e[1]+yz*e[2]),-(zx*e[0]+zy*e[1]+zz*e[2]),1]);
+  },
+  mul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s;}return o;}
+};
+
+/* ============================================================
+   Shaders
+   ============================================================ */
 const HDR = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n';
 
 const COMMON = `
@@ -170,6 +201,7 @@ vec3 enc(vec3 c){return c/(1.0+c);}
 vec3 dec(vec3 c){c=min(c,vec3(0.995));return c/(1.0-c);}
 `;
 
+/* ---- Water vertex: Gerstner waves + ripple height ---- */
 const WATER_VS = HDR + `
 layout(location=0) in vec2 aUV;
 uniform mat4 uVP;
@@ -210,6 +242,7 @@ void main(){
   gl_Position=uVP*vec4(pos,1.0);
 }`;
 
+/* ---- Water fragment: fresnel, reflection, refraction, SSS, foam, glitter ---- */
 const WATER_FS = HDR + COMMON + `
 in vec3 vWorld; in vec3 vN; in float vFoam;
 out vec4 o;
@@ -222,6 +255,7 @@ void main(){
   vec3 toCam=uCam-vWorld; float dist=length(toCam); vec3 V=toCam/dist;
   vec3 Nw=normalize(vN);
   vec2 s=Nw.xz/max(Nw.y,0.2);
+  /* interactive ripples */
   vec2 ruv=vWorld.xz/(2.0*uRipR)+0.5;
   float ef=smoothstep(0.0,0.08,min(min(ruv.x,1.0-ruv.x),min(ruv.y,1.0-ruv.y)));
   float e=1.0/uRipN;
@@ -230,6 +264,7 @@ void main(){
   vec2 grad=vec2(hr-hl,hu-hd)*(uRipN/(4.0*uRipR));
   s-=grad*ef*1.3;
   float foamSim=texture(uRip,ruv).g*ef;
+  /* capillary detail */
   float df=1.0/(1.0+dist*0.035);
   vec2 t1=vWorld.xz*0.23+vec2(uTime*0.031,uTime*0.017);
   vec2 t2=vWorld.xz*0.61+vec2(-uTime*0.047,uTime*0.029);
@@ -243,12 +278,16 @@ void main(){
   vec3 N=normalize(vec3(s.x,1.0,s.y));
   float nv=max(dot(N,V),0.0);
   float F=0.02+0.98*pow(1.0-nv,5.0);
+
+  /* reflection */
   vec3 R=reflect(-V,N); R.y=abs(R.y);
   vec3 refl=skyCol(R,0.0);
   vec2 uv=gl_FragCoord.xy/uRes;
   vec2 off=vec2(dot(s,uCamR.xz),dot(s,normalize(uCamF.xz))*0.6);
   vec4 rb=texture(uRefl,clamp(uv+off*0.05,0.001,0.999));
   refl=mix(refl,dec(rb.rgb),rb.a);
+
+  /* body colour with sub-surface scattering at crests */
   vec3 L=uSun;
   float hh=clamp(vWorld.y/(uA0*2.0+0.35)*0.5+0.5,0.0,1.0);
   float back=pow(clamp(dot(L,-V)*0.5+0.5,0.0,1.0),3.0);
@@ -259,6 +298,8 @@ void main(){
            +tq*0.05*uAmbLum*pow(1.0-nv,2.0)*(0.4+hh)
            +vec3(0.0,0.05,0.06)*uAmbLum*hh;
   body*=mix(vec3(1.0),uHorizon*1.4,0.25);
+
+  /* refraction of submerged objects */
   float zW=linZ(gl_FragCoord.z);
   vec3 refr=body;
   vec2 uvq=clamp(uv+off*0.03,0.001,0.999);
@@ -272,7 +313,10 @@ void main(){
     vec3 tr=exp(-thick*vec3(0.45,0.11,0.065)*(0.8+0.5*uStorm));
     refr=dec(sc.rgb)*tr+body*(1.0-tr);
   }
+
   vec3 col=mix(refr,refl,F);
+
+  /* sun glitter (GGX) */
   vec3 H=normalize(L+V);
   float nh=max(dot(N,H),0.0);
   float a=0.035+0.07*uStorm+dist*0.00025; float a2=a*a;
@@ -282,6 +326,8 @@ void main(){
   float Fs=0.02+0.98*pow(1.0-vh,5.0);
   float nl=max(dot(N,L),0.0);
   vec3 spec=uSunCol*min(D*Fs/(4.0*max(nv,0.08)),22.0)*smoothstep(0.0,0.12,nl)*step(0.0,L.y);
+
+  /* foam */
   float foamAmt=clamp(vFoam+foamSim*1.2,0.0,1.0);
   float fn=texture(uDetail,vWorld.xz*0.55+vec2(uTime*0.01,-uTime*0.013)).a*0.6
           +texture(uDetail,vWorld.xz*1.9-vec2(uTime*0.02,0.0)).a*0.4;
@@ -289,13 +335,17 @@ void main(){
   float foamLight=0.42*uAmbLum+0.22*uSunLum*max(dot(N,L),0.0);
   vec3 foamCol=vec3(0.94,0.97,1.0)*foamLight;
   col=mix(col+spec*(1.0-fm),foamCol,fm*0.92);
+
+  /* horizon haze */
   float fog=smoothstep(100.0,580.0,dist);
   vec3 hd2=normalize(vec3(vWorld.x-uCam.x,0.02,vWorld.z-uCam.z));
   col=mix(col,skyCol(hd2,0.0),fog);
+
   vec3 outc=tonemap(col)+(hash12(gl_FragCoord.xy)-0.5)/255.0;
   o=vec4(outc,1.0);
 }`;
 
+/* ---- Sky ---- */
 const SKY_VS = HDR + `
 out vec2 vNdc;
 void main(){
@@ -312,6 +362,7 @@ void main(){
   o=vec4(tonemap(c)+(hash12(gl_FragCoord.xy)-0.5)/255.0,1.0);
 }`;
 
+/* ---- Balls ---- */
 const BALL_VS = HDR + `
 layout(location=0) in vec3 aPos;
 uniform mat4 uVP; uniform vec3 uPos; uniform float uR; uniform mat3 uRot;
@@ -405,6 +456,7 @@ void main(){
   else o=vec4(tonemap(col),1.0);
 }`;
 
+/* ---- Spray particles ---- */
 const PART_VS = HDR + `
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aInfo;
 uniform mat4 uVP; uniform float uPx;
@@ -425,8 +477,738 @@ void main(){
   c+=uSunCol*0.08*smoothstep(0.2,-0.6,q.y+q.x*0.3);
   o=vec4(tonemap(c),a);
 }`;
-</script>
 
-<script src="js/app.js"></script>
+function compile(type,src){
+  const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ const m=gl.getShaderInfoLog(s); showErr('Shader error: '+m); throw new Error(m); }
+  return s;
+}
+function program(vs,fs){
+  const p=gl.createProgram();
+  gl.attachShader(p,compile(gl.VERTEX_SHADER,vs)); gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ const m=gl.getProgramInfoLog(p); showErr('Link error: '+m); throw new Error(m); }
+  p.u={}; return p;
+}
+function L(p,n){ let v=p.u[n]; if(v===undefined){ v=gl.getUniformLocation(p,n); p.u[n]=v; } return v; }
+
+const pWater=program(WATER_VS,WATER_FS);
+const pSky=program(SKY_VS,SKY_FS);
+const pBall=program(BALL_VS,BALL_FS);
+const pPart=program(PART_VS,PART_FS);
+
+/* ============================================================
+   Procedural tileable detail texture (ridged normals + fbm alpha)
+   ============================================================ */
+function hash2(x,y,seed){
+  let h=Math.imul(x,374761393)^Math.imul(y,668265263)^Math.imul(seed,1274126177);
+  h=Math.imul(h^(h>>>13),1274126177); h^=h>>>16; return (h>>>0)/4294967295;
+}
+function vnoise(x,y,per,seed){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const x0=((xi%per)+per)%per,x1=(x0+1)%per,y0=((yi%per)+per)%per,y1=(y0+1)%per;
+  const a=hash2(x0,y0,seed),b=hash2(x1,y0,seed),c=hash2(x0,y1,seed),d=hash2(x1,y1,seed);
+  return lerp(lerp(a,b,u),lerp(c,d,u),v);
+}
+function makeDetailTexture(){
+  const S=256, rid=new Float32Array(S*S), fb=new Float32Array(S*S);
+  for(let j=0;j<S;j++)for(let i=0;i<S;i++){
+    let a=0,b=0,amp=0.5,tot=0;
+    for(let o=0;o<5;o++){
+      const per=4<<o, x=i/S*per, y=j/S*per;
+      const n=vnoise(x,y,per,11+o*7);
+      a+=amp*(1-Math.abs(2*n-1)); b+=amp*vnoise(x,y,per,101+o*13); tot+=amp; amp*=0.5;
+    }
+    rid[j*S+i]=a/tot; fb[j*S+i]=b/tot;
+  }
+  const gx=new Float32Array(S*S), gy=new Float32Array(S*S); let ss=0;
+  for(let j=0;j<S;j++)for(let i=0;i<S;i++){
+    const ip=(i+1)%S,im=(i+S-1)%S,jp=(j+1)%S,jm=(j+S-1)%S;
+    const dx=rid[j*S+ip]-rid[j*S+im], dy=rid[jp*S+i]-rid[jm*S+i];
+    gx[j*S+i]=dx; gy[j*S+i]=dy; ss+=dx*dx+dy*dy;
+  }
+  const sc=0.35/Math.sqrt(ss/(2*S*S));
+  let mean=0; for(let i=0;i<S*S;i++) mean+=fb[i]; mean/=S*S;
+  let sd=0; for(let i=0;i<S*S;i++) sd+=(fb[i]-mean)*(fb[i]-mean); sd=Math.sqrt(sd/(S*S));
+  const data=new Uint8Array(S*S*4);
+  for(let i=0;i<S*S;i++){
+    let nx=-gx[i]*sc, ny=1, nz=-gy[i]*sc; const l=Math.hypot(nx,ny,nz); nx/=l;ny/=l;nz/=l;
+    data[i*4]=(nx*0.5+0.5)*255; data[i*4+1]=(ny*0.5+0.5)*255; data[i*4+2]=(nz*0.5+0.5)*255;
+    data[i*4+3]=clamp((fb[i]-mean)/(3.2*sd)+0.5,0,1)*255;
+  }
+  const t=gl.createTexture(); gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,S,S,0,gl.RGBA,gl.UNSIGNED_BYTE,data);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+  return t;
+}
+const texDetail=makeDetailTexture();
+
+/* ============================================================
+   Geometry: water grid, sphere, empty VAO, particle buffer
+   ============================================================ */
+const GN=288;
+const waterVAO=gl.createVertexArray(); let waterIdxCount=0;
+(function(){
+  const n1=GN+1, pos=new Float32Array(n1*n1*2);
+  for(let j=0;j<n1;j++)for(let i=0;i<n1;i++){ pos[(j*n1+i)*2]=-1+2*i/GN; pos[(j*n1+i)*2+1]=-1+2*j/GN; }
+  const idx=new Uint32Array(GN*GN*6); let k=0;
+  for(let j=0;j<GN;j++)for(let i=0;i<GN;i++){
+    const a=j*n1+i,b=a+1,c=a+n1,d=c+1;
+    idx[k++]=a;idx[k++]=c;idx[k++]=b; idx[k++]=b;idx[k++]=c;idx[k++]=d;
+  }
+  waterIdxCount=idx.length;
+  gl.bindVertexArray(waterVAO);
+  const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,pos,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+  const ib=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+})();
+
+const sphereVAO=gl.createVertexArray(); let sphereIdxCount=0;
+(function(){
+  const LA=36,LO=56, v=[], idx=[];
+  for(let a=0;a<=LA;a++){ const th=a/LA*Math.PI; for(let o=0;o<=LO;o++){ const ph=o/LO*Math.PI*2; v.push(Math.sin(th)*Math.cos(ph),Math.cos(th),Math.sin(th)*Math.sin(ph)); } }
+  for(let a=0;a<LA;a++)for(let o=0;o<LO;o++){ const i=a*(LO+1)+o,j=i+LO+1; idx.push(i,j,i+1,i+1,j,j+1); }
+  sphereIdxCount=idx.length;
+  gl.bindVertexArray(sphereVAO);
+  const vb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  const ib=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(idx),gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+})();
+const emptyVAO=gl.createVertexArray();
+
+const MAXP=3200;
+const PX=new Float32Array(MAXP),PY=new Float32Array(MAXP),PZ=new Float32Array(MAXP);
+const PVX=new Float32Array(MAXP),PVY=new Float32Array(MAXP),PVZ=new Float32Array(MAXP);
+const PLife=new Float32Array(MAXP),PSize=new Float32Array(MAXP),PMax=new Float32Array(MAXP);
+let pCount=0;
+const partData=new Float32Array(MAXP*5);
+const partVAO=gl.createVertexArray(), partBuf=gl.createBuffer();
+gl.bindVertexArray(partVAO); gl.bindBuffer(gl.ARRAY_BUFFER,partBuf); gl.bufferData(gl.ARRAY_BUFFER,partData.byteLength,gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,2,gl.FLOAT,false,20,12);
+gl.bindVertexArray(null);
+
+/* ============================================================
+   Ocean wave model (shared by GPU shader and CPU physics)
+   ============================================================ */
+const WIND_ANG=1.1;
+const WL=[26,17,11.5,7.2,4.6,3.0,2.0,1.3];
+const WOFF=[0,0.35,-0.4,0.8,-0.9,1.3,-1.5,2.0];
+const wv=WL.map((Lw,i)=>{const k=2*Math.PI/Lw,a=WIND_ANG+WOFF[i];return{L:Lw,k,om:Math.sqrt(G*k),dx:Math.sin(a),dz:Math.cos(a),ph:i*2.399,A:0,q:0,qk:0};});
+const uWArr=new Float32Array(32), uQArr=new Float32Array(8);
+let waveA0=0.3;
+function updateWaves(s){
+  for(let i=0;i<8;i++){
+    const w=wv[i];
+    w.A=w.L*0.016*(0.25+1.25*s);
+    w.q=0.085*(0.35+0.65*s); w.qk=w.q/w.k;
+    uWArr[i*4]=w.dx;uWArr[i*4+1]=w.dz;uWArr[i*4+2]=w.k;uWArr[i*4+3]=w.A; uQArr[i]=w.q;
+  }
+  waveA0=wv[0].A;
+}
+function waveSample(x,z,t,full,out){
+  let px=x,pz=z; const its=full?3:2;
+  for(let it=0;it<its;it++){
+    let sx=0,sz=0;
+    for(let i=0;i<8;i++){const w=wv[i];const c=Math.cos(w.k*(w.dx*px+w.dz*pz)-w.om*t+w.ph);sx+=w.dx*w.qk*c;sz+=w.dz*w.qk*c;}
+    px=x-sx;pz=z-sz;
+  }
+  let h=0,vx=0,vy=0,vz=0,ax=0,az=0;
+  for(let i=0;i<8;i++){
+    const w=wv[i]; const th=w.k*(w.dx*px+w.dz*pz)-w.om*t+w.ph;
+    const sn=Math.sin(th); h+=w.A*sn;
+    if(full){
+      const c=Math.cos(th); const vh=w.qk*w.om*sn; vx+=w.dx*vh;vz+=w.dz*vh; vy-=w.A*w.om*c;
+      const ah=-w.qk*w.om*w.om*c; ax+=w.dx*ah; az+=w.dz*ah;
+    }
+  }
+  out.h=h;out.vx=vx;out.vy=vy;out.vz=vz;out.ax=ax;out.az=az;
+}
+function approxH(x,z,t){
+  let h=0; for(let i=0;i<3;i++){const w=wv[i];h+=w.A*Math.sin(w.k*(w.dx*x+w.dz*z)-w.om*t+w.ph);} return h;
+}
+
+/* ============================================================
+   Interactive ripple + foam simulation (2D wave equation)
+   ============================================================ */
+const RN=192, RR=14;
+const rA=new Float32Array(RN*RN), rB=new Float32Array(RN*RN);
+let cur=rA, prv=rB;
+const foamArr=new Float32Array(RN*RN), ripData=new Float32Array(RN*RN*2), dampArr=new Float32Array(RN*RN);
+(function(){
+  for(let y=0;y<RN;y++)for(let x=0;x<RN;x++){
+    const d=Math.min(x,y,RN-1-x,RN-1-y); const e=d>=14?1:0.84+0.16*(d/14);
+    dampArr[y*RN+x]=0.9985*e;
+  }
+})();
+const cellSz=2*RR/RN, RC2=Math.pow(1.8/120/cellSz,2);
+function rippleStep(){
+  for(let y=1;y<RN-1;y++){
+    let i=y*RN+1;
+    for(let x=1;x<RN-1;x++,i++){
+      const c=cur[i];
+      const lap=cur[i-1]+cur[i+1]+cur[i-RN]+cur[i+RN]-4*c;
+      prv[i]=(2*c-prv[i]+RC2*lap)*dampArr[i];
+      foamArr[i]*=0.9972;
+    }
+  }
+  const t=cur;cur=prv;prv=t;
+}
+function addRipple(wx,wz,rad,amt){
+  const gx=(wx/(2*RR)+0.5)*RN-0.5,gz=(wz/(2*RR)+0.5)*RN-0.5,rc=rad/cellSz;
+  const x0=Math.max(1,Math.floor(gx-rc)),x1=Math.min(RN-2,Math.ceil(gx+rc));
+  const z0=Math.max(1,Math.floor(gz-rc)),z1=Math.min(RN-2,Math.ceil(gz+rc));
+  const r2=rc*rc;
+  for(let zi=z0;zi<=z1;zi++)for(let xi=x0;xi<=x1;xi++){
+    const dx=xi-gx,dz=zi-gz,d2=(dx*dx+dz*dz)/r2; if(d2>=1)continue;
+    let w=1-d2;w*=w; const i=zi*RN+xi; let v=cur[i]+amt*w; cur[i]=v>0.7?0.7:v<-0.7?-0.7:v;
+  }
+}
+function addFoam(wx,wz,rad,amt){
+  const gx=(wx/(2*RR)+0.5)*RN-0.5,gz=(wz/(2*RR)+0.5)*RN-0.5,rc=rad/cellSz;
+  const x0=Math.max(1,Math.floor(gx-rc)),x1=Math.min(RN-2,Math.ceil(gx+rc));
+  const z0=Math.max(1,Math.floor(gz-rc)),z1=Math.min(RN-2,Math.ceil(gz+rc));
+  const r2=rc*rc;
+  for(let zi=z0;zi<=z1;zi++)for(let xi=x0;xi<=x1;xi++){
+    const dx=xi-gx,dz=zi-gz,d2=(dx*dx+dz*dz)/r2; if(d2>=1)continue;
+    const i=zi*RN+xi; const v=foamArr[i]+amt*(1-d2); foamArr[i]=v>1.2?1.2:v;
+  }
+}
+const texRip=gl.createTexture();
+gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D,texRip);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.RG16F,RN,RN,0,gl.RG,gl.FLOAT,ripData);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+function uploadRipple(){
+  for(let i=0;i<RN*RN;i++){ ripData[i*2]=cur[i]; ripData[i*2+1]=foamArr[i]; }
+  gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D,texRip);
+  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,RN,RN,gl.RG,gl.FLOAT,ripData);
+}
+
+/* ============================================================
+   Render targets (scene colour/depth for refraction, reflection)
+   ============================================================ */
+let scene=null, refl=null, rW=0, rH=0;
+function makeTargets(w,h){
+  if(scene){ gl.deleteFramebuffer(scene.fb); gl.deleteTexture(scene.color); gl.deleteTexture(scene.depth); }
+  if(refl){ gl.deleteFramebuffer(refl.fb); gl.deleteTexture(refl.color); gl.deleteRenderbuffer(refl.depth); }
+  gl.activeTexture(gl.TEXTURE7);
+  scene={fb:gl.createFramebuffer(),color:gl.createTexture(),depth:gl.createTexture()};
+  gl.bindTexture(gl.TEXTURE_2D,scene.color);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D,scene.depth);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,w,h,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,scene.fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,scene.color,0);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,scene.depth,0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) showErr('Scene FBO incomplete');
+  rW=Math.max(2,w>>1); rH=Math.max(2,h>>1);
+  refl={fb:gl.createFramebuffer(),color:gl.createTexture(),depth:gl.createRenderbuffer()};
+  gl.bindTexture(gl.TEXTURE_2D,refl.color);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,rW,rH,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.bindRenderbuffer(gl.RENDERBUFFER,refl.depth); gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,rW,rH);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,refl.fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,refl.color,0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,refl.depth);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) showErr('Reflection FBO incomplete');
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+
+/* ============================================================
+   Sky / time of day
+   ============================================================ */
+let sea=0.38, seaT=0.38, sunV=0.58;
+const sky={sun:[0,1,0],sunCol:[1,1,1],zenith:[0,0,0],horizon:[0,0,0],glow:[0,0,0],ambLum:1,sunLum:3,cloudLo:0.6,storm:0};
+function updateSky(){
+  const eps=0.03+sunV*1.22, day=sstep(0.02,0.6,eps), s=sea;
+  const az=-0.5, ce=Math.cos(eps);
+  sky.sun=[Math.sin(az)*ce,Math.sin(eps),-Math.cos(az)*ce];
+  let z=lerp3([0.05,0.08,0.26],[0.09,0.24,0.62],day);
+  let h=lerp3([0.85,0.38,0.2],[0.62,0.77,0.92],Math.pow(day,0.7));
+  const gz=[0.12,0.14,0.17], gh=[0.33,0.36,0.40];
+  z=lerp3(z,gz.map(v=>v*(0.4+day)),s*0.65); z=z.map(v=>v*(1-0.3*s));
+  h=lerp3(h,gh.map(v=>v*(0.5+0.5*day)),s*0.5);
+  sky.zenith=z; sky.horizon=h;
+  const gk=(1-day*0.8)*0.9; sky.glow=[1.0*gk,0.5*gk,0.22*gk].map(v=>v*(1-0.6*s));
+  const inten=2.9*(0.4+0.6*sstep(0,0.3,eps))*(1-0.72*s);
+  const c=lerp3([1,0.42,0.16],[1,0.94,0.84],sstep(0.05,0.5,eps));
+  sky.sunCol=c.map(v=>v*inten); sky.sunLum=inten;
+  sky.ambLum=(0.3+0.7*day)*(1-0.35*s);
+  sky.cloudLo=0.64-0.26*s; sky.storm=s;
+}
+function setSky(p){
+  gl.uniform1f(L(p,'uTime'),simT); gl.uniform1f(L(p,'uStorm'),sky.storm);
+  gl.uniform1f(L(p,'uAmbLum'),sky.ambLum); gl.uniform1f(L(p,'uSunLum'),sky.sunLum);
+  gl.uniform1f(L(p,'uCloudLo'),sky.cloudLo); gl.uniform1f(L(p,'uExp'),0.88);
+  gl.uniform3fv(L(p,'uSun'),sky.sun); gl.uniform3fv(L(p,'uSunCol'),sky.sunCol);
+  gl.uniform3fv(L(p,'uZenith'),sky.zenith); gl.uniform3fv(L(p,'uHorizon'),sky.horizon); gl.uniform3fv(L(p,'uGlow'),sky.glow);
+}
+
+/* ============================================================
+   Balls: rigid body physics
+   ============================================================ */
+const TYPES=[
+  {name:'Beach ball', sub:'hollow · floats high', r:0.62, rho:0.012, e:0.72, ic:0.667, sw:'conic-gradient(#d91420,#f5f5f0,#1040d9,#f9cc1a,#f5f5f0,#12a037,#d91420)'},
+  {name:'Basketball', sub:'light · bouncy',       r:0.46, rho:0.085, e:0.80, ic:0.667, sw:'radial-gradient(circle at 35% 30%,#fbb066,#d9600f 55%,#6e2c04)'},
+  {name:'Tennis ball',sub:'floats · fuzzy',       r:0.30, rho:0.37,  e:0.72, ic:0.667, sw:'radial-gradient(circle at 35% 30%,#e8f56a,#b5d11c 55%,#5e7108)'},
+  {name:'Wood',       sub:'half-submerged',       r:0.40, rho:0.62,  e:0.45, ic:0.4,   sw:'radial-gradient(circle at 35% 30%,#d9a45f,#9a6428 55%,#4a2a0c)'},
+  {name:'Bowling',    sub:'sinks slowly',         r:0.32, rho:1.35,  e:0.22, ic:0.4,   sw:'radial-gradient(circle at 35% 30%,#7c4bd0,#2a0f78 55%,#05031c)'},
+  {name:'Steel',      sub:'sinks fast',           r:0.28, rho:7.8,   e:0.30, ic:0.4,   sw:'linear-gradient(135deg,#f4f7fb,#8f9aab 40%,#e9eef6 55%,#4c5666)'}
+];
+let selType=0, sizeMul=1, timeScale=1;
+const balls=[]; const MAXBALLS=40;
+function qNorm(q){const l=Math.hypot(q[0],q[1],q[2],q[3])||1;q[0]/=l;q[1]/=l;q[2]/=l;q[3]/=l;}
+function spawnBall(x,y,z,ti,vx=0,vy=0,vz=0){
+  const T=TYPES[ti], r=T.r*sizeMul, V=4/3*Math.PI*r*r*r, m=T.rho*RHO_W*V;
+  const q=[Math.random()-0.5,Math.random()-0.5,Math.random()-0.5,Math.random()-0.5]; qNorm(q);
+  const b={x,y,z,vx,vy,vz,wx:(Math.random()-0.5)*5,wy:(Math.random()-0.5)*5,wz:(Math.random()-0.5)*5,q,r,V,m,im:1/m,I:T.ic*m*r*r,
+    type:ti,e:T.e,pf:0,wh:0,grab:null,dead:false,frac:0,rot:new Float32Array(9)};
+  balls.push(b);
+  while(balls.length>MAXBALLS){ const o=balls.shift(); if(grab&&grab.ball===o) grab=null; }
+  return b;
+}
+
+function emit(x,y,z,vx,vy,vz,size,life){
+  if(pCount>=MAXP) return; const i=pCount++;
+  PX[i]=x;PY[i]=y;PZ[i]=z;PVX[i]=vx;PVY[i]=vy;PVZ[i]=vz;PSize[i]=size;PLife[i]=life;PMax[i]=life;
+}
+function splash(b,speed){
+  const n=Math.min(190,Math.floor(12+speed*16*b.r*2)), rho=b.r*0.85;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.2832, out=(0.25+Math.random())*speed*0.22, up=(0.5+Math.random()*1.1)*speed*0.4;
+    emit(b.x+Math.cos(a)*rho,b.wh+0.02,b.z+Math.sin(a)*rho,Math.cos(a)*out+b.vx*0.2,up,Math.sin(a)*out+b.vz*0.2,(0.03+Math.random()*0.07)*(0.5+b.r),0.9+Math.random()*0.9);
+  }
+  /* central jet */
+  const nj=Math.floor(speed*3);
+  for(let i=0;i<nj;i++){ const a=Math.random()*6.28; emit(b.x,b.wh,b.z,Math.cos(a)*0.4,speed*(0.35+Math.random()*0.35),Math.sin(a)*0.4,0.035+Math.random()*0.04,1.0+Math.random()*0.8); }
+  addFoam(b.x,b.z,b.r*1.7,Math.min(1.2,speed*0.22));
+}
+function particlesStep(dt){
+  for(let i=pCount-1;i>=0;i--){
+    PLife[i]-=dt; PVY[i]-=G*dt; const dr=1-0.5*dt; PVX[i]*=dr;PVZ[i]*=dr;
+    PX[i]+=PVX[i]*dt;PY[i]+=PVY[i]*dt;PZ[i]+=PVZ[i]*dt;
+    if(PLife[i]<=0||PY[i]<approxH(PX[i],PZ[i],simT)){
+      if(PLife[i]>0&&Math.random()<0.3) addRipple(PX[i],PZ[i],0.13,-0.012);
+      const l=--pCount; if(i!==l){PX[i]=PX[l];PY[i]=PY[l];PZ[i]=PZ[l];PVX[i]=PVX[l];PVY[i]=PVY[l];PVZ[i]=PVZ[l];PLife[i]=PLife[l];PSize[i]=PSize[l];PMax[i]=PMax[l];}
+    }
+  }
+}
+
+const S0={h:0,vx:0,vy:0,vz:0,ax:0,az:0}, S1={h:0,vx:0,vy:0,vz:0,ax:0,az:0};
+let simT=0, stepCount=0, windX=0, windZ=0;
+function capV(h,b){ let d=h-(b.y-b.r); if(d<=0)return 0; if(d>2*b.r)d=2*b.r; return Math.PI*d*d*(3*b.r-d)/3; }
+let grab=null;
+
+function stepBall(b,dt){
+  const r=b.r,t=simT,o=0.65*r;
+  waveSample(b.x,b.z,t,true,S0);
+  waveSample(b.x+o,b.z,t,false,S1);const h1=S1.h;
+  waveSample(b.x-o,b.z,t,false,S1);const h2=S1.h;
+  waveSample(b.x,b.z+o,t,false,S1);const h3=S1.h;
+  waveSample(b.x,b.z-o,t,false,S1);const h4=S1.h;
+  b.wh=S0.h;
+  const Vs=(capV(S0.h,b)+capV(h1,b)+capV(h2,b)+capV(h3,b)+capV(h4,b))/5;
+  const frac=Vs/b.V; b.frac=frac;
+  const dAvg=clamp((S0.h+h1+h2+h3+h4)/5-(b.y-r),0,2*r);
+  const meff=b.m+0.5*RHO_W*Vs;
+
+  let ay=(-b.m*G+RHO_W*G*Vs)/meff;
+  let ax=RHO_W*Vs*S0.ax/meff, az=RHO_W*Vs*S0.az/meff;
+  const dist=Math.hypot(b.x,b.z);
+  if(dist>10){ const k=(dist-10)*0.9; ax-=b.x/dist*k; az-=b.z/dist*k; }
+  if(b.grab){ const g=b.grab; ax+=150*(g.x-b.x)-20*b.vx; ay+=150*(g.y-b.y)-20*b.vy; az+=150*(g.z-b.z)-20*b.vz; }
+  b.vx+=ax*dt;b.vy+=ay*dt;b.vz+=az*dt;
+
+  /* hydrodynamic drag + torque */
+  if(frac>0.0005){
+    const ux=b.vx-S0.vx,uy=b.vy-S0.vy,uz=b.vz-S0.vz,sp=Math.hypot(ux,uy,uz);
+    const As=Math.PI*r*r*Math.sqrt(frac);
+    const f=Math.min(0.85,0.5*RHO_W*0.47*As*sp*dt/meff);
+    b.vx-=ux*f;b.vy-=uy*f;b.vz-=uz*f;
+    const rcy=-r+dAvg*0.5, Jx=-b.m*ux*f, Jz=-b.m*uz*f;
+    b.wx+=0.6*(rcy*Jz)/b.I; b.wz+=0.6*(-rcy*Jx)/b.I;
+    const wm=Math.hypot(b.wx,b.wy,b.wz);
+    const fr=Math.min(0.5,0.5*RHO_W*0.12*Math.pow(r,5)*wm*frac*dt/b.I)+0.5*frac*dt;
+    b.wx*=1-fr;b.wy*=1-fr;b.wz*=1-fr;
+  }
+  /* air drag, wind & Magnus effect */
+  {
+    const ux=b.vx-windX,uy=b.vy,uz=b.vz-windZ,sp=Math.hypot(ux,uy,uz), airF=1-Math.sqrt(frac);
+    const A=Math.PI*r*r*airF;
+    const f=Math.min(0.5,0.5*RHO_A*0.47*A*sp*dt/meff);
+    b.vx-=ux*f;b.vy-=uy*f;b.vz-=uz*f;
+    if(airF>0.01){
+      const k=0.5*RHO_A*Math.PI*r*r*r*airF/b.m;
+      let mx=k*(b.wy*uz-b.wz*uy),my=k*(b.wz*ux-b.wx*uz),mz=k*(b.wx*uy-b.wy*ux);
+      const ml=Math.hypot(mx,my,mz); if(ml>25){const s=25/ml;mx*=s;my*=s;mz*=s;}
+      b.vx+=mx*dt;b.vy+=my*dt;b.vz+=mz*dt;
+    }
+  }
+  if(b.grab){ const d=1-3*dt; b.wx*=d;b.wy*=d;b.wz*=d; }
+  const vm=Math.hypot(b.vx,b.vy,b.vz); if(vm>40){const s=40/vm;b.vx*=s;b.vy*=s;b.vz*=s;}
+
+  /* splash on entry */
+  if(b.pf<0.003&&frac>=0.003&&b.vy<-1.0) splash(b,-b.vy);
+  b.pf=frac;
+
+  /* push water: ripples, wake and foam */
+  const dpen=S0.h-(b.y-r);
+  if(dpen>0&&dpen<2*r){
+    const dy=b.y-S0.h, rho=Math.max(Math.sqrt(Math.max(r*r-dy*dy,0)),0.06);
+    addRipple(b.x,b.z,rho*1.25+0.12,b.vy*dt*0.35);
+    const ux=b.vx-S0.vx,uz=b.vz-S0.vz,sp=Math.hypot(ux,uz);
+    if(sp>0.4){
+      const dx=ux/sp,dz=uz/sp;
+      addRipple(b.x+dx*rho*0.9,b.z+dz*rho*0.9,rho*0.8+0.1,sp*dt*0.22);
+      addRipple(b.x-dx*rho*0.9,b.z-dz*rho*0.9,rho*0.8+0.1,-sp*dt*0.22);
+    }
+    if(sp>1.4||Math.abs(b.vy)>2) addFoam(b.x,b.z,rho*1.4+0.1,Math.min(1,(sp+Math.abs(b.vy))*0.45)*dt*10);
+    if(sp>3&&frac<0.95&&Math.random()<sp*dt*4){
+      const a=Math.random()*6.28; emit(b.x+Math.cos(a)*rho,S0.h,b.z+Math.sin(a)*rho,b.vx*0.4+Math.cos(a)*0.6,0.8+Math.random()*sp*0.25,b.vz*0.4+Math.sin(a)*0.6,0.025+Math.random()*0.03,0.6+Math.random()*0.5);
+    }
+  }
+
+  b.x+=b.vx*dt;b.y+=b.vy*dt;b.z+=b.vz*dt;
+  /* orientation */
+  const q=b.q,hx=0.5*dt;
+  const dqx=b.wx*q[3]+b.wy*q[2]-b.wz*q[1], dqy=-b.wx*q[2]+b.wy*q[3]+b.wz*q[0],
+        dqz=b.wx*q[1]-b.wy*q[0]+b.wz*q[3], dqw=-b.wx*q[0]-b.wy*q[1]-b.wz*q[2];
+  q[0]+=dqx*hx;q[1]+=dqy*hx;q[2]+=dqz*hx;q[3]+=dqw*hx; qNorm(q);
+  if(!isFinite(b.x+b.y+b.z+b.vx+b.vy+b.vz)||dist>28||b.y<-24) b.dead=true;
+}
+
+function collide(){
+  const n=balls.length;
+  for(let i=0;i<n;i++){const a=balls[i];for(let j=i+1;j<n;j++){const b=balls[j];
+    const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,rs=a.r+b.r,d2=dx*dx+dy*dy+dz*dz;
+    if(d2>=rs*rs||d2<1e-8)continue;
+    const d=Math.sqrt(d2),nx=dx/d,ny=dy/d,nz=dz/d,pen=rs-d,tot=a.im+b.im;
+    a.x-=nx*pen*a.im/tot;a.y-=ny*pen*a.im/tot;a.z-=nz*pen*a.im/tot;
+    b.x+=nx*pen*b.im/tot;b.y+=ny*pen*b.im/tot;b.z+=nz*pen*b.im/tot;
+    const ra=a.r,rb=b.r;
+    const vax=a.vx+(a.wy*nz-a.wz*ny)*ra,vay=a.vy+(a.wz*nx-a.wx*nz)*ra,vaz=a.vz+(a.wx*ny-a.wy*nx)*ra;
+    const vbx=b.vx-(b.wy*nz-b.wz*ny)*rb,vby=b.vy-(b.wz*nx-b.wx*nz)*rb,vbz=b.vz-(b.wx*ny-b.wy*nx)*rb;
+    const rx=vbx-vax,ry=vby-vay,rz=vbz-vaz,rn=rx*nx+ry*ny+rz*nz;
+    if(rn<0){
+      let e=Math.min(a.e,b.e); if(a.frac>0.5||b.frac>0.5) e*=0.35;
+      const jn=-(1+e)*rn/tot;
+      a.vx-=jn*nx*a.im;a.vy-=jn*ny*a.im;a.vz-=jn*nz*a.im;
+      b.vx+=jn*nx*b.im;b.vy+=jn*ny*b.im;b.vz+=jn*nz*b.im;
+      const tx=rx-rn*nx,ty=ry-rn*ny,tz=rz-rn*nz,tm=Math.hypot(tx,ty,tz);
+      if(tm>1e-5){
+        const dx2=tx/tm,dy2=ty/tm,dz2=tz/tm;
+        const den=tot+ra*ra/a.I+rb*rb/b.I, jt=Math.min(0.3*jn,tm/den);
+        a.vx+=jt*dx2*a.im;a.vy+=jt*dy2*a.im;a.vz+=jt*dz2*a.im;
+        b.vx-=jt*dx2*b.im;b.vy-=jt*dy2*b.im;b.vz-=jt*dz2*b.im;
+        const fx=jt*dx2,fy=jt*dy2,fz=jt*dz2;
+        a.wx+=(ny*ra*fz-nz*ra*fy)/a.I;a.wy+=(nz*ra*fx-nx*ra*fz)/a.I;a.wz+=(nx*ra*fy-ny*ra*fx)/a.I;
+        b.wx+=(ny*rb*fz-nz*rb*fy)/b.I;b.wy+=(nz*rb*fx-nx*rb*fz)/b.I;b.wz+=(nx*rb*fy-ny*rb*fx)/b.I;
+      }
+      if(jn*Math.min(a.im,b.im)>0.8){ const hy=(a.wh+b.wh)*0.5; if(Math.abs(a.y-hy)<a.r*1.5) addFoam((a.x+b.x)/2,(a.z+b.z)/2,0.5,0.4); }
+    }
+  }}
+}
+
+const H=1/240;
+function physicsStep(){
+  simT+=H; stepCount++;
+  for(let i=0;i<balls.length;i++) stepBall(balls[i],H);
+  for(let i=balls.length-1;i>=0;i--) if(balls[i].dead){ if(grab&&grab.ball===balls[i])grab=null; balls.splice(i,1); }
+  collide();
+  if((stepCount&1)===0) rippleStep();
+}
+
+/* ============================================================
+   Camera & input
+   ============================================================ */
+const cam={yaw:0.0,pitch:0.24,dist:13,tYaw:0.0,tPitch:0.24,tDist:13,target:[0,0.3,0]};
+let eye=[0,3,13], camF=[0,0,-1], camR=[1,0,0], camU=[0,1,0], VP=null, tanH=0.466, aspect=1;
+function computeCamera(){
+  const cp=Math.cos(cam.pitch);
+  eye=[cam.target[0]+cam.dist*Math.sin(cam.yaw)*cp, cam.target[1]+cam.dist*Math.sin(cam.pitch), cam.target[2]+cam.dist*Math.cos(cam.yaw)*cp];
+  waveSample(eye[0],eye[2],simT,false,S1); const minY=S1.h+0.5; if(eye[1]<minY) eye[1]=minY;
+  let fx=cam.target[0]-eye[0],fy=cam.target[1]-eye[1],fz=cam.target[2]-eye[2]; const fl=Math.hypot(fx,fy,fz); fx/=fl;fy/=fl;fz/=fl;
+  camF=[fx,fy,fz];
+  let rx=fy*0-fz*1, ry=fz*0-fx*0, rz=fx*1-fy*0; // cross(f, up=(0,1,0))
+  rx=-fz; ry=0; rz=fx; const rl=Math.hypot(rx,rz); rx/=rl;rz/=rl; camR=[rx,0,rz];
+  camU=[ry*fz-rz*fy, rz*fx-rx*fz, rx*fy-ry*fx];
+  aspect=canvas.width/canvas.height;
+  tanH=0.466*Math.max(1,1.15/aspect);
+  const proj=M4.persp(2*Math.atan(tanH),aspect,0.1,3000);
+  VP=M4.mul(proj,M4.look(eye,cam.target,[0,1,0]));
+}
+function rayFrom(px,py){
+  const nx=(px/innerWidth)*2-1, ny=1-(py/innerHeight)*2;
+  const d=[camF[0]+nx*tanH*aspect*camR[0]+ny*tanH*camU[0], camF[1]+ny*tanH*camU[1], camF[2]+nx*tanH*aspect*camR[2]+ny*tanH*camU[2]];
+  const l=Math.hypot(d[0],d[1],d[2]); return [d[0]/l,d[1]/l,d[2]/l];
+}
+function pickBall(px,py){
+  const d=rayFrom(px,py); let best=null,bt=1e9;
+  for(const b of balls){
+    const ox=eye[0]-b.x,oy=eye[1]-b.y,oz=eye[2]-b.z, R=b.r*1.2+0.06;
+    const bb=ox*d[0]+oy*d[1]+oz*d[2], c=ox*ox+oy*oy+oz*oz-R*R, disc=bb*bb-c;
+    if(disc<0)continue; let t=-bb-Math.sqrt(disc); if(t<0)t=-bb+Math.sqrt(disc); if(t>0&&t<bt){bt=t;best=b;}
+  }
+  return best?{ball:best,t:bt}:null;
+}
+function spawnAtPointer(px,py){
+  const d=rayFrom(px,py); let x,z;
+  if(d[1]<-0.002){ const t=-(eye[1]-0.0)/d[1]; x=eye[0]+d[0]*t; z=eye[2]+d[2]*t; }
+  else { x=eye[0]+d[0]*10; z=eye[2]+d[2]*10; }
+  const rr=Math.hypot(x,z); if(rr>10){x*=10/rr;z*=10/rr;}
+  spawnBall(x+(Math.random()-0.5)*0.2,4.2+Math.random()*0.6,z+(Math.random()-0.5)*0.2,selType,0,0,0);
+}
+const ptrs=new Map(); let pinch0=0, pinchDist0=13, downT=0, tapStart=null, lastHintHide=false;
+function hideHint(){ if(lastHintHide)return; lastHintHide=true; $('hint').style.opacity=0; }
+function setGrabTarget(x,y){
+  if(!grab)return; const d=rayFrom(x,y);
+  grab.ball.grab={x:eye[0]+d[0]*grab.depth,y:eye[1]+d[1]*grab.depth,z:eye[2]+d[2]*grab.depth};
+}
+function releaseGrab(){ if(grab){ grab.ball.grab=null; const b=grab.ball; b.wx+=(b.vz)*0.4/b.r*0.3; b.wz-=(b.vx)*0.4/b.r*0.3; grab=null; } }
+canvas.addEventListener('pointerdown',e=>{
+  e.preventDefault(); canvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now(),moved:false});
+  hideHint(); canvas.style.cursor='grabbing';
+  if(ptrs.size===1){
+    const hit=pickBall(e.clientX,e.clientY);
+    if(hit){ grab={ball:hit.ball,pid:e.pointerId,depth:hit.t}; setGrabTarget(e.clientX,e.clientY); }
+  } else {
+    releaseGrab();
+    const [a,b]=[...ptrs.values()]; pinch0=Math.hypot(a.x-b.x,a.y-b.y); pinchDist0=cam.tDist;
+  }
+});
+canvas.addEventListener('pointermove',e=>{
+  const p=ptrs.get(e.pointerId); if(!p)return;
+  const dx=e.clientX-p.x,dy=e.clientY-p.y; p.x=e.clientX;p.y=e.clientY;
+  if(Math.hypot(p.x-p.sx,p.y-p.sy)>7) p.moved=true;
+  if(grab&&grab.pid===e.pointerId){ setGrabTarget(e.clientX,e.clientY); return; }
+  if(ptrs.size===1&&p.moved){
+    cam.tYaw-=dx*0.0055; cam.tPitch=clamp(cam.tPitch+dy*0.0045,0.02,1.45);
+  } else if(ptrs.size===2){
+    const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinch0>10) cam.tDist=clamp(pinchDist0*pinch0/Math.max(d,10),3.5,45);
+  }
+});
+function endPtr(e){
+  const p=ptrs.get(e.pointerId); if(!p)return;
+  const wasGrab=grab&&grab.pid===e.pointerId;
+  if(wasGrab) releaseGrab();
+  else if(ptrs.size===1&&!p.moved&&performance.now()-p.t<400&&e.type==='pointerup') spawnAtPointer(p.x,p.y);
+  ptrs.delete(e.pointerId);
+  if(ptrs.size<2) pinch0=0;
+  if(ptrs.size===0) canvas.style.cursor='grab';
+}
+canvas.addEventListener('pointerup',endPtr);
+canvas.addEventListener('pointercancel',endPtr);
+canvas.addEventListener('wheel',e=>{e.preventDefault();cam.tDist=clamp(cam.tDist*Math.exp(e.deltaY*0.0012),3.5,45);},{passive:false});
+['gesturestart','gesturechange','gestureend'].forEach(n=>document.addEventListener(n,e=>e.preventDefault()));
+document.addEventListener('touchmove',e=>{ if(e.target===canvas) e.preventDefault(); },{passive:false});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ============================================================
+   UI
+   ============================================================ */
+const chipsEl=$('chips');
+TYPES.forEach((T,i)=>{
+  const b=document.createElement('button'); b.className='chip'+(i===0?' on':'');
+  b.innerHTML='<span class="sw" style="background:'+T.sw+'"></span><span>'+T.name+'<small>'+T.sub+'</small></span>';
+  b.onclick=()=>{ selType=i; [...chipsEl.children].forEach((c,k)=>c.classList.toggle('on',k===i)); };
+  chipsEl.appendChild(b);
+});
+function setFill(el){ el.style.setProperty('--p',((el.value-el.min)/(el.max-el.min)*100)+'%'); }
+const sSize=$('sSize'),sSea=$('sSea'),sSun=$('sSun');
+function seaName(v){return v<12?'Glassy':v<30?'Calm':v<50?'Moderate':v<72?'Rough':v<90?'Very rough':'Storm';}
+function sunName(v){return v<12?'Sunset':v<30?'Golden hour':v<62?'Afternoon':'Midday';}
+sSize.oninput=()=>{sizeMul=sSize.value/100;$('vSize').textContent=sizeMul.toFixed(1)+'×';setFill(sSize);};
+sSea.oninput=()=>{seaT=sSea.value/100;$('vSea').textContent=seaName(+sSea.value);setFill(sSea);};
+sSun.oninput=()=>{sunV=sSun.value/100;$('vSun').textContent=sunName(+sSun.value);setFill(sSun);};
+[sSize,sSea,sSun].forEach(s=>{s.oninput();});
+$('bDrop').onclick=()=>{ hideHint(); spawnBall((Math.random()-0.5)*3,4.5,(Math.random()-0.5)*3,selType); };
+$('bRain').onclick=()=>{ hideHint(); for(let i=0;i<10;i++){ setTimeout(()=>{ const prev=selType; spawnBall((Math.random()-0.5)*11,5+Math.random()*5,(Math.random()-0.5)*11,Math.floor(Math.random()*TYPES.length)); },i*110); } };
+$('bClear').onclick=()=>{ balls.length=0; grab=null; };
+$('bSlow').onclick=e=>{ timeScale=timeScale===1?0.2:1; e.currentTarget.classList.toggle('on',timeScale!==1); };
+$('bHide').onclick=()=>{ $('dock').classList.add('hidden'); $('fab').classList.add('show'); };
+$('fab').onclick=()=>{ $('dock').classList.remove('hidden'); $('fab').classList.remove('show'); };
+
+// Additional ambience and presentation controls.
+let autoOrbit=false, sprayEnabled=true, statsEnabled=true, ambientMotion=false;
+let orbitClock=0, manualTimeScale=1;
+const settings=$('settings');
+function toggleSetting(id,on){const el=$(id);el.setAttribute('aria-checked',String(on));el.classList.toggle('on',on);}
+function showControls(){document.body.classList.remove('immersive');}
+function enterQuiet(){settings.classList.remove('open');document.body.classList.add('immersive');}
+$('bFullscreen').onclick=enterQuiet;
+$('immersive-exit').onclick=showControls;
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(document.body.classList.contains('immersive'))showControls();else settings.classList.remove('open');}
+  if(e.key.toLowerCase()==='f'&&!e.repeat)document.body.classList.contains('immersive')?showControls():enterQuiet();
+});
+$('bSettings').onclick=()=>settings.classList.toggle('open');
+$('bSettingsClose').onclick=()=>settings.classList.remove('open');
+$('tOrbit').onclick=()=>{autoOrbit=!autoOrbit;toggleSetting('tOrbit',autoOrbit);};
+$('tSpray').onclick=()=>{sprayEnabled=!sprayEnabled;toggleSetting('tSpray',sprayEnabled);};
+$('tStats').onclick=()=>{statsEnabled=!statsEnabled;toggleSetting('tStats',statsEnabled);$('stats').style.display=statsEnabled?'block':'none';};
+$('tAmbient').onclick=()=>{ambientMotion=!ambientMotion;timeScale=ambientMotion?0.42:manualTimeScale;toggleSetting('tAmbient',ambientMotion);};
+const sQuality=$('sQuality'),sDistance=$('sDistance');
+function updateQuality(){const q=+sQuality.value/100;prCeil=Math.min(maxPR,Math.max(.65,q*maxPR));pr=Math.min(pr,prCeil);$('vQuality').textContent=q<.76?'Economy':q<.92?'Balanced':'Fine';setFill(sQuality);resize();}
+sQuality.oninput=updateQuality;setTimeout(updateQuality,0);
+sDistance.oninput=()=>{cam.tDist=+sDistance.value/10;$('vDistance').textContent=cam.tDist.toFixed(1);setFill(sDistance);};
+sDistance.value=130; sDistance.oninput();
+const previousSlow=$('bSlow').onclick;
+$('bSlow').onclick=e=>{manualTimeScale=manualTimeScale===1?.2:1;if(!ambientMotion)timeScale=manualTimeScale;e.currentTarget.classList.toggle('on',timeScale!==1);};
+$('fab').onclick=()=>{$('dock').classList.remove('hidden');$('fab').classList.remove('show');};
+
+setTimeout(hideHint,14000);
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+const maxPR=Math.min(window.devicePixelRatio||1,2);
+let pr=Math.min(maxPR,1.5), prCeil=maxPR, curW=0, curH=0;
+function resize(){
+  const w=Math.max(2,Math.floor(innerWidth*pr)), h=Math.max(2,Math.floor(innerHeight*pr));
+  if(w!==curW||h!==curH){ curW=w;curH=h;canvas.width=w;canvas.height=h; makeTargets(w,h); }
+}
+addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,200));
+
+function drawBalls(mode,mirror){
+  if(balls.length===0) return;
+  gl.useProgram(pBall); setSky(pBall);
+  gl.uniformMatrix4fv(L(pBall,'uVP'),false,VP);
+  gl.uniform1f(L(pBall,'uMode'),mode); gl.uniform1f(L(pBall,'uMirror'),mirror);
+  gl.bindVertexArray(sphereVAO);
+  for(const b of balls){
+    const q=b.q,x=q[0],y=q[1],z=q[2],w=q[3],m=b.rot;
+    m[0]=1-2*(y*y+z*z);m[1]=2*(x*y+w*z);m[2]=2*(x*z-w*y);
+    m[3]=2*(x*y-w*z);m[4]=1-2*(x*x+z*z);m[5]=2*(y*z+w*x);
+    m[6]=2*(x*z+w*y);m[7]=2*(y*z-w*x);m[8]=1-2*(x*x+y*y);
+    gl.uniform3f(L(pBall,'uPos'),b.x,b.y,b.z); gl.uniform1f(L(pBall,'uR'),b.r);
+    gl.uniformMatrix3fv(L(pBall,'uRot'),false,m);
+    gl.uniform1f(L(pBall,'uType'),b.type); gl.uniform1f(L(pBall,'uPlane'),b.wh);
+    gl.uniform3f(L(pBall,'uCamEff'),eye[0],mirror?2*b.wh-eye[1]:eye[1],eye[2]);
+    gl.drawElements(gl.TRIANGLES,sphereIdxCount,gl.UNSIGNED_SHORT,0);
+  }
+  gl.bindVertexArray(null);
+}
+
+function render(){
+  const W=canvas.width,Hh=canvas.height;
+  computeCamera();
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,texDetail);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.BLEND); gl.depthMask(true);
+
+  /* reflection pass (mirrored balls) */
+  gl.bindFramebuffer(gl.FRAMEBUFFER,refl.fb); gl.viewport(0,0,rW,rH);
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  drawBalls(1,1);
+  /* scene pass (colour+depth for refraction) */
+  gl.bindFramebuffer(gl.FRAMEBUFFER,scene.fb); gl.viewport(0,0,W,Hh);
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  drawBalls(1,0);
+
+  /* main pass */
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,W,Hh);
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(pSky); setSky(pSky);
+  gl.uniform3fv(L(pSky,'uCamF'),camF); gl.uniform3fv(L(pSky,'uCamR'),camR); gl.uniform3fv(L(pSky,'uCamU'),camU);
+  gl.uniform2f(L(pSky,'uTanAsp'),tanH,aspect);
+  gl.bindVertexArray(emptyVAO); gl.drawArrays(gl.TRIANGLES,0,3);
+  gl.enable(gl.DEPTH_TEST);
+
+  gl.useProgram(pWater); setSky(pWater);
+  gl.uniformMatrix4fv(L(pWater,'uVP'),false,VP);
+  gl.uniform3fv(L(pWater,'uCam'),eye); gl.uniform3fv(L(pWater,'uCamR'),camR); gl.uniform3fv(L(pWater,'uCamF'),camF);
+  gl.uniform4fv(L(pWater,'uW'),uWArr); gl.uniform1fv(L(pWater,'uQ'),uQArr);
+  gl.uniform1f(L(pWater,'uRipR'),RR); gl.uniform1f(L(pWater,'uRipN'),RN); gl.uniform1f(L(pWater,'uA0'),waveA0);
+  gl.uniform2f(L(pWater,'uRes'),W,Hh); gl.uniform2f(L(pWater,'uNF'),0.1,3000);
+  gl.uniform1i(L(pWater,'uRip'),1); gl.uniform1i(L(pWater,'uScene'),2); gl.uniform1i(L(pWater,'uSceneD'),3); gl.uniform1i(L(pWater,'uRefl'),4);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,texRip);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,scene.color);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,scene.depth);
+  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D,refl.color);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindVertexArray(waterVAO); gl.drawElements(gl.TRIANGLES,waterIdxCount,gl.UNSIGNED_INT,0);
+  gl.bindVertexArray(null);
+
+  /* balls above the surface */
+  drawBalls(0,0);
+
+  /* spray */
+  if(sprayEnabled&&pCount>0){
+    for(let i=0;i<pCount;i++){
+      const o=i*5; partData[o]=PX[i];partData[o+1]=PY[i];partData[o+2]=PZ[i];
+      const lf=PLife[i]/PMax[i]; partData[o+3]=PSize[i]*(0.6+0.4*lf); partData[o+4]=Math.min(1,PLife[i]/0.35)*0.75;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER,partBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,partData,0,pCount*5);
+    gl.useProgram(pPart); setSky(pPart);
+    gl.uniformMatrix4fv(L(pPart,'uVP'),false,VP);
+    gl.uniform1f(L(pPart,'uPx'),Hh/(2*tanH));
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.bindVertexArray(partVAO); gl.drawArrays(gl.POINTS,0,pCount); gl.bindVertexArray(null);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+}
+
+/* ============================================================
+   Main loop with adaptive resolution
+   ============================================================ */
+let lastT=performance.now(), acc=0, ema=16.7, frameN=0, lastStat=0, cool=0, ceilTimer=0, fpsShown=60;
+function frame(now){
+  requestAnimationFrame(frame);
+  const rdtMs=now-lastT; lastT=now; if(!(rdtMs>0)) return;
+  const dt=Math.min(rdtMs/1000,0.05);
+  ema=ema*0.94+Math.min(rdtMs,100)*0.06; frameN++; cool--; ceilTimer+=dt;
+  if(cool<=0&&frameN>40){
+    if(ema>20.5&&pr>0.65){ prCeil=Math.max(0.7,pr-0.05); pr=Math.max(0.65,pr-0.12); cool=60; resize(); }
+    else if(ema<17.6&&pr<prCeil-0.001){ pr=Math.min(prCeil,pr+0.06); cool=120; resize(); }
+  }
+  if(ceilTimer>25){ ceilTimer=0; prCeil=Math.min(maxPR,prCeil+0.1); }
+  resize();
+
+  sea+=(seaT-sea)*Math.min(1,dt*1.6);
+  updateWaves(sea); updateSky();
+  const ws=2.5+11*sea; windX=Math.sin(WIND_ANG)*ws; windZ=Math.cos(WIND_ANG)*ws;
+
+  cam.yaw+=(cam.tYaw-cam.yaw)*Math.min(1,dt*10);
+  cam.pitch+=(cam.tPitch-cam.pitch)*Math.min(1,dt*10);
+  cam.dist+=(cam.tDist-cam.dist)*Math.min(1,dt*8);
+  if(autoOrbit&&ptrs.size===0&&!grab){orbitClock+=dt;cam.tYaw+=dt*0.018;}
+
+  acc+=dt*timeScale; let steps=0;
+  while(acc>=H&&steps<12){ physicsStep(); acc-=H; steps++; }
+  if(steps>=12) acc=0;
+  if(sprayEnabled) particlesStep(dt*timeScale);
+  uploadRipple();
+  render();
+
+  if(statsEnabled&&now-lastStat>500){
+    lastStat=now; fpsShown=Math.round(1000/ema);
+    $('stats').innerHTML='FPS '+Math.min(fpsShown,120)+'<br>'+balls.length+' OBJECTS · '+Math.round(sea*100)+'% SEA';
+  }
+}
+resize();
+requestAnimationFrame(t=>{ lastT=t; frame(t); });
+
+/* a couple of balls to start with */
+spawnBall(-2.2,3.6,1.0,0,0,0,0);
+spawnBall(0.6,5.2,-0.4,1,0,0,0);
+spawnBall(2.6,6.4,0.8,5,0,0,0);
+</script>
 </body>
 </html>
