@@ -549,6 +549,335 @@ input[type=range]::-moz-range-thumb {
   .btn { min-height: 42px; padding: 0 12px; font-size: 12px; }
 }
 
+/* ── Circular radial menu (glassmorphic merged style) ── */
+
+@property --waterbg-selected-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+.waterbg-menu {
+  --options: 8;
+  --col-ring: rgba(255, 255, 255, 0.12);
+  --col-btn-close: rgba(255, 255, 255, 0.2);
+  --col-accent: var(--accent);
+  --button-size: 56px;
+  --option-size: 44px;
+  --icon-size: 20px;
+  --icon-col: rgba(255, 255, 255, 0.8);
+  --ring-thickness: 10px;
+  --ring-dist: 16px;
+  --duration: 0.5s;
+  --easing: cubic-bezier(0.22, 1, 0.36, 1.15);
+
+  --ring-radius: calc(
+    var(--button-size) / 2 + var(--ring-dist) + var(--ring-thickness) / 2
+  );
+  --outer-radius: calc(
+    var(--button-size) / 2 + var(--ring-dist) + var(--ring-thickness)
+  );
+  --selected: 1;
+  --waterbg-selected-angle: calc(360deg / var(--options) * var(--selected));
+
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: var(--button-size);
+  height: var(--button-size);
+  z-index: 30;
+  font-family: inherit;
+  filter: drop-shadow(0 6px 2px #0001) drop-shadow(0 12px 12px #0002);
+}
+
+.waterbg-menu .btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  z-index: 2;
+  background: radial-gradient(circle at 50% -100%, rgba(127, 143, 155, 0.15) 0%, transparent 75%),
+    var(--col-accent);
+  box-shadow:
+    inset 0 -2px 1px rgba(0,0,0,0.1),
+    inset 0 -4px 2px rgba(0,0,0,0.1),
+    inset 0 8px 16px rgba(255,255,255,0.1),
+    0 2px 1px rgba(0,0,0,0.2),
+    0 4px 4px rgba(0,0,0,0.2),
+    0 12px 24px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  transition: 0.3s ease;
+  cursor: pointer;
+}
+
+.waterbg-menu .btn .btn-svg {
+  width: 55%;
+  height: 55%;
+  color: white;
+  pointer-events: none;
+}
+
+.waterbg-menu .btn .morph-line {
+  transition:
+    d 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) .top {
+  d: path("M6 6 L18 18");
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) .middle {
+  d: path("M12 12 L12 12");
+  opacity: 0;
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) .bottom {
+  d: path("M6 18 L18 6");
+}
+
+.waterbg-menu .btn .menu-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.waterbg-menu .btn:hover {
+  background: radial-gradient(circle at 50% -100%, rgba(127, 143, 155, 0.25) 0%, transparent 75%),
+    color-mix(in oklab, var(--col-accent) 85%, white);
+}
+
+.waterbg-menu .btn:active {
+  background: radial-gradient(circle at 50% -100%, rgba(127, 143, 155, 0.1) 0%, transparent 75%),
+    color-mix(in oklab, var(--col-accent) 70%, black);
+}
+
+.waterbg-menu .options {
+  position: absolute;
+  inset: calc(-1 * (var(--ring-thickness) + var(--ring-dist)));
+  border-radius: 50%;
+  color: white;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.waterbg-menu .options .option {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--option-size);
+  height: var(--option-size);
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%)
+    rotate(calc(360deg / var(--options) * var(--i))) translateY(0px);
+  transition:
+    transform var(--duration) var(--easing),
+    opacity 0.25s ease,
+    background-color 0.25s ease;
+  transition-delay: calc(var(--i) * 0.025s);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(14, 24, 38, 0.7);
+}
+
+.waterbg-menu .options .option .svg {
+  stroke: var(--icon-col);
+  stroke-width: 1.5px;
+  fill: none;
+  transition: var(--duration) ease;
+}
+
+.waterbg-menu .options .option .option-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.waterbg-menu .options .option .option-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transform: rotate(calc(-360deg / var(--options) * var(--i)));
+  pointer-events: none;
+}
+
+.waterbg-menu .options .option .option-inner .svg {
+  display: block;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex-shrink: 0;
+  color: var(--icon-col);
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.waterbg-menu .options .option .option-inner::after {
+  content: attr(data-tooltip);
+  --angle: calc(360deg / var(--options) * var(--i));
+  --tooltip-gap: 0.5rem;
+  --side: round(nearest, sin(var(--angle)), 1);
+  --vertical: round(nearest, cos(var(--angle)), 1);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  padding: 6px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(
+    calc(
+      -50% + var(--side) * (50% + var(--option-size) / 2 + var(--tooltip-gap))
+    ),
+    calc(
+      -50% - (1 - abs(var(--side))) * var(--vertical) * (50% +
+            var(--option-size) / 2 + var(--tooltip-gap))
+    )
+  );
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s ease;
+  backdrop-filter: blur(12px);
+  background: rgba(14, 24, 38, 0.85);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.waterbg-menu .options .option:hover .option-inner::after,
+.waterbg-menu .options .option:focus-within .option-inner::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.waterbg-menu .options .option:hover .svg,
+.waterbg-menu .options .option:focus-within .svg {
+  stroke: color-mix(in oklab, var(--col-accent) 75%, white);
+}
+
+.waterbg-menu .options .option:hover {
+  background: rgba(14, 24, 38, 0.85);
+  border-color: rgba(255,255,255,0.25);
+  transform: translate(-50%, -50%)
+    rotate(calc(360deg / var(--options) * var(--i))) translateY(0px)
+    scale(1.15);
+}
+
+.waterbg-menu .options .option:has(input:checked) .svg {
+  stroke: var(--col-ring);
+}
+
+.waterbg-menu .menu-ring {
+  position: absolute;
+  inset: calc(-1 * (var(--ring-thickness) + var(--ring-dist)));
+  z-index: -1;
+  background-color: var(--col-ring);
+  border-radius: 50%;
+  mask: radial-gradient(
+    circle,
+    #0000 calc(var(--button-size) / 2 + var(--ring-dist)),
+    #000 calc(var(--button-size) / 2 + var(--ring-dist) + 1px),
+    #000 calc(var(--outer-radius) - 1px),
+    #0000 var(--outer-radius)
+  );
+  background:
+    radial-gradient(circle at 50% -100%, rgba(127, 143, 155, 0.15) 0%, transparent 75%),
+    conic-gradient(
+        rgba(255,255,255,0.08) 0.25turn,
+        rgba(255,255,255,0.16) 0.25turn 0.5turn,
+        rgba(255,255,255,0.08) 0.5turn 0.75turn,
+        rgba(255,255,255,0.16) 0.75turn
+      )
+      top left / 4px 4px repeat,
+    var(--col-ring);
+  transform: scale(0);
+  opacity: 0;
+  transition:
+    transform var(--duration) var(--easing),
+    opacity 0.3s ease;
+}
+
+.waterbg-menu .selector-light {
+  position: absolute;
+  inset: calc(-1 * (var(--ring-thickness) + var(--ring-dist)));
+  z-index: -1;
+  border-radius: 50%;
+  background-image: conic-gradient(
+    from calc(-180deg / var(--options)),
+    #0000 0deg,
+    var(--col-accent) 1deg,
+    var(--col-accent) calc(360deg / var(--options) - 1deg),
+    #0000 calc(360deg / var(--options))
+  );
+  mask: radial-gradient(
+    circle,
+    #0000 calc(var(--button-size) / 2 + var(--ring-dist)),
+    #000 calc(var(--button-size) / 2 + var(--ring-dist) + 1px),
+    #000 calc(var(--outer-radius) - 1px),
+    #0000 var(--outer-radius)
+  );
+  transform: rotate(var(--waterbg-selected-angle)) scale(0);
+  opacity: 0;
+  transition:
+    transform var(--duration) var(--easing),
+    opacity 0.3s ease;
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) {
+  background: color-mix(in oklab, var(--col-accent) 80%, black);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) ~ .menu-ring {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) ~ .selector-light {
+  transform: rotate(var(--waterbg-selected-angle)) scale(1);
+  opacity: 1;
+}
+
+.waterbg-menu .btn:has(.menu-input:checked) ~ .options .option {
+  transform: translate(-50%, -50%)
+    rotate(calc(360deg / var(--options) * var(--i)))
+    translateY(calc(-1 * var(--ring-radius)));
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.waterbg-menu .btn:not(:has(.menu-input:checked)) ~ .options .option {
+  transition-delay: 0ms;
+}
+
 /* ── Fullscreen hint (shown when UI hidden) ── */
 
 #fsHint {
