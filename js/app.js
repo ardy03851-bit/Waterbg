@@ -1008,23 +1008,6 @@ const ICON = {
 /* ============================================================
    UI construction
    ============================================================ */
-const chipsEl = $('chips');
-const typeLabels = ['Beach ball', 'Basketball', 'Tennis ball', 'Wood', 'Bowling', 'Steel'];
-const typeSubs = ['hollow · floats high', 'light · bouncy', 'floats · fuzzy', 'half-submerged', 'sinks slowly', 'sinks fast'];
-
-TYPES.forEach((T, i) => {
-  const b = document.createElement('button');
-  b.className = 'chip' + (i === 0 ? ' on' : '');
-  const hue = (i * 60) % 360;
-  const grad = `linear-gradient(135deg, hsl(${hue},70%,60%), hsl(${(hue+40)%360},70%,50%))`;
-  b.innerHTML = `<span class="sw" style="background:${grad}"></span><span>${T.name}<small>${T.sub}</small></span>`;
-  b.onclick = () => {
-    selType = i;
-    [...chipsEl.children].forEach((c, k) => c.classList.toggle('on', k === i));
-  };
-  chipsEl.appendChild(b);
-});
-
 function setFill(el) {
   el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
 }
@@ -1173,6 +1156,24 @@ function buildDock() {
     <button class="btn ghost" id="bFullscreen" style="padding:6px 12px;min-height:auto;font-size:12px">${ICON.expand}<span style="display:none">Fullscreen</span></button>
   `;
   dock.appendChild(head);
+
+  // Ball type chips
+  const chipsContainer = document.createElement('div');
+  chipsContainer.className = 'chips';
+  chipsContainer.id = 'chips';
+  TYPES.forEach((T, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (i === 0 ? ' on' : '');
+    const hue = (i * 60) % 360;
+    const grad = `linear-gradient(135deg, hsl(${hue},70%,60%), hsl(${(hue+40)%360},70%,50%))`;
+    b.innerHTML = `<span class="sw" style="background:${grad}"></span><span>${T.name}<small>${T.sub}</small></span>`;
+    b.onclick = () => {
+      selType = i;
+      [...chipsContainer.children].forEach((c, k) => c.classList.toggle('on', k === i));
+    };
+    chipsContainer.appendChild(b);
+  });
+  dock.appendChild(chipsContainer);
 
   // Tabs
   const tabsBar = document.createElement('div');
