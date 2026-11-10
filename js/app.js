@@ -1008,6 +1008,7 @@ const ICON = {
 /* ============================================================
    UI construction
    ============================================================ */
+let chipsContainer = null;
 function setFill(el) {
   el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
 }
@@ -1158,7 +1159,7 @@ function buildDock() {
   dock.appendChild(head);
 
   // Ball type chips
-  const chipsContainer = document.createElement('div');
+  chipsContainer = document.createElement('div');
   chipsContainer.className = 'chips';
   chipsContainer.id = 'chips';
   TYPES.forEach((T, i) => {
@@ -1629,6 +1630,78 @@ if (fab) {
     fab.classList.remove('show');
   };
 }
+
+// Circular radial menu wiring
+const menuInput = $('waterbgMenuInput');
+const menuOptions = document.querySelectorAll('#waterbgMenu .option .option-input');
+let currentSelType = selType;
+
+function closeMenu() {
+  if (menuInput) menuInput.checked = false;
+}
+
+menuOptions.forEach((inp, idx) => {
+  inp.addEventListener('change', () => {
+    closeMenu();
+    switch (idx + 1) {
+      case 1: // Drop ball
+        hideHint();
+        spawnBall((Math.random() - 0.5) * 3, 4.5, (Math.random() - 0.5) * 3, currentSelType);
+        break;
+      case 2: // Ball rain
+        hideHint();
+        for (let i = 0; i < 10; i++) {
+          setTimeout(() => {
+            const t = Math.floor(Math.random() * TYPES.length);
+            spawnBall((Math.random() - 0.5) * 11, 5 + Math.random() * 5, (Math.random() - 0.5) * 11, t);
+          }, i * 110);
+        }
+        break;
+      case 3: // Ball type — cycle
+        currentSelType = (currentSelType + 1) % TYPES.length;
+        selType = currentSelType;
+        if (chipsContainer) {
+          [...chipsContainer.children].forEach((c, k) => c.classList.toggle('on', k === currentSelType));
+        }
+        break;
+      case 4: // Sea state — cycle presets
+        seaT = (seaT + 0.25) % 1.05;
+        if (seaT > 1) seaT = 0;
+        uiState.waveHeight = seaT;
+        const sWh = $('sWaveHeight');
+        if (sWh) { sWh.value = seaT; setFill(sWh); $('vWaveHeight').textContent = (seaT * 100).toFixed(0) + '%'; }
+        const vSeaQuick = $('vSeaQuick');
+        const sSeaQuick = $('sSeaQuick');
+        if (vSeaQuick) vSeaQuick.textContent = seaName(Math.round(seaT * 100));
+        if (sSeaQuick) { sSeaQuick.value = Math.round(seaT * 100); setFill(sSeaQuick); }
+        break;
+      case 5: // Sky time — cycle presets
+        sunV = (sunV + 0.25) % 1.05;
+        if (sunV > 1) sunV = 0;
+        uiState.skyTime = sunV;
+        const sSt = $('sSkyTime');
+        if (sSt) { sSt.value = sunV; setFill(sSt); $('vSkyTime').textContent = (sunV * 100).toFixed(0) + '%'; }
+        const vSunQuick = $('vSunQuick');
+        const sSunQuick = $('sSunQuick');
+        if (vSunQuick) vSunQuick.textContent = sunName(Math.round(sunV * 100));
+        if (sSunQuick) { sSunQuick.value = Math.round(sunV * 100); setFill(sSunQuick); }
+        break;
+      case 6: // Graphics — toggle reflections
+        uiState.reflection = !uiState.reflection;
+        break;
+      case 7: // Reset camera
+        cam.tYaw = 0;
+        cam.tPitch = 0.24;
+        cam.tDist = 13;
+        cam.target = [0, 0.3, 0];
+        break;
+      case 8: // Fullscreen toggle
+        if (fullscreenActive) exitFullscreen();
+        else enterFullscreen();
+        break;
+    }
+  });
+});
 
 // Hint
 setTimeout(hideHint, 14000);
